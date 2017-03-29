@@ -7,8 +7,8 @@ static Bool_t debug = false;
 
 static UInt_t check_every_N = 100000;
 
-static Double_t mZmin = 60.0;
-static Double_t mZmax = 120.0;
+static Double_t mZmin = 70.0;
+static Double_t mZmax = 110.0;
 static Double_t ptZmax = 30.0;
 static vector<Double_t> zptBins = {0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 26.0, 30.0};
 
@@ -116,15 +116,31 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   // electronID tightEleID_EB_8TeV(0.004, 0.03, 0.01, 0.12, 0.02, 0.1, 0.05);                                   
   // electronID tightEleID_EE_8TeV(0.005, 0.02, 0.03, 0.10, 0.02, 0.1, 0.05);                                                     
   // dEtaIn, dPhiIn sigmaIetaIeta, H/E, dxy, dz, 1/E-1/p, vetex fit prob., missing hits
-  electronID tightEleID_EB_8TeV(0.007, 0.15, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
-  electronID tightEleID_EE_8TeV(0.009, 0.10, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1);
-  electronID* eleID = NULL; // choose in loop for each event between EB or EE id    
+  // electronID tightEleID_EB_8TeV(0.007, 0.15, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
+  // electronID tightEleID_EE_8TeV(0.009, 0.10, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1);
+  // electronID* eleID = NULL; // choose in loop for each event between EB or EE id    
+
+  // triggering MVA ID --> https://twiki.cern.ch/twiki/bin/viewauth/CMS/MultivariateElectronIdentification#Triggering_MVA    
+  electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
+  electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
+  electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
+
+  electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);                                                                                                       
+  electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);                                                                                                      
+  electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);  
+
+  electronTriggeringMVAID* eleTrigMVAID = NULL; //                                                                                                                          
+
+  Double_t eleIso03thr_QCD = 0.1;
+  Double_t eleIso04thr_QCD = 0.15;
+  Double_t muIso04thr = 0.12;       // 0.15,  0.2,   0.125                                                                   
+  Double_t muIso04thr_QCD = 0.12;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2   
 
   Int_t chargedLeptonFlavour = isMuon ? 13 : 11;
   Double_t lepEtaThreshold = isMuon ? 2.1 : 1.479; // 1.479  // EB only for electron for now                                   
   Int_t lepTightIdThreshold = isMuon ? 1 : 3;
   Double_t looseIsoThreshold = isMuon ? 0.2 : 0.15;
-  Double_t tightIsoThreshold = isMuon ? 0.12 : 0.10;
+  Double_t tightIsoThreshold = isMuon ? 0.12 : 0.15;
   
   cout << endl;
 
@@ -173,6 +189,7 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   // other electron related branches
   TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_scEta");
   TTreeReaderArray<Float_t> lep_r9 (reader,"LepGood_r9");
+  TTreeReaderArray<Float_t> lep_mvaIdTrig (reader,"LepGood_mvaIdTrig"); // value of triggering MVA ID
   
   // MC reweight
   // must activate it only for non data sample
@@ -269,36 +286,64 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
       if (*HLT_DoubleEl == 0) continue;
 
       // ID + isolation
-      if (fabs(lep_etaSc[0]) < 1.479) eleID = &tightEleID_EB_8TeV;
-      else                            eleID = &tightEleID_EE_8TeV;
+      // if (fabs(lep_etaSc[0]) < 1.479) eleID = &tightEleID_EB_8TeV;
+      // else                            eleID = &tightEleID_EE_8TeV;
 
       // cutting on R9 produces large disagreement between data and MC. It could be because R9 is badly reproduced in MC
       // if (lep_r9[0] < 0.94) continue;
       // if (lep_r9[1] < 0.94) continue;
 
-      // ID lep1
-      if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
-      if (lep_HoE[0] > eleID->HoE) continue;
-      if (lep_dz[0] > eleID->dz) continue;
-      if ((1 - lep_eSuperClusterOverP[0])/lep_ecalEnergy[0] > eleID->invE_minus_invP) continue;
-      if (lep_lostHits[0] > eleID->missingHits) continue;
-      if (lep_convVeto[0] == 0) continue;
-      if (lep_detaIn[0] > eleID->dEtaIn) continue;                                                                           
-      if (lep_dphiIn[0] > eleID->dPhiIn) continue;                                                                             
-      if (lep_dxy[0] > eleID->dxy) continue;                                             
-      // ID lep2
-      if (lep_sigmaIetaIeta[1] > eleID->sigmaIetaIeta) continue;
-      if (lep_HoE[1] > eleID->HoE) continue;
-      if (lep_dz[1] > eleID->dz) continue;
-      if ((1 - lep_eSuperClusterOverP[1])/lep_ecalEnergy[1] > eleID->invE_minus_invP) continue;
-      if (lep_lostHits[1] > eleID->missingHits) continue;
-      if (lep_convVeto[1] == 0) continue;
-      if (lep_detaIn[1] > eleID->dEtaIn) continue;                                                                           
-      if (lep_dphiIn[1] > eleID->dPhiIn) continue;                                                                             
-      if (lep_dxy[1] > eleID->dxy) continue;                                             
-      // isolation
-      if (lep_relIso03[0] > tightIsoThreshold) continue; 
-      if (lep_relIso03[1] > looseIsoThreshold) continue; 
+      // // ID lep1
+      // if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
+      // if (lep_HoE[0] > eleID->HoE) continue;
+      // if (lep_dz[0] > eleID->dz) continue;
+      // if ((1 - lep_eSuperClusterOverP[0])/lep_ecalEnergy[0] > eleID->invE_minus_invP) continue;
+      // if (lep_lostHits[0] > eleID->missingHits) continue;
+      // if (lep_convVeto[0] == 0) continue;
+      // if (lep_detaIn[0] > eleID->dEtaIn) continue;                                                                           
+      // if (lep_dphiIn[0] > eleID->dPhiIn) continue;                                                                             
+      // if (lep_dxy[0] > eleID->dxy) continue;                                             
+      // // ID lep2
+      // if (lep_sigmaIetaIeta[1] > eleID->sigmaIetaIeta) continue;
+      // if (lep_HoE[1] > eleID->HoE) continue;
+      // if (lep_dz[1] > eleID->dz) continue;
+      // if ((1 - lep_eSuperClusterOverP[1])/lep_ecalEnergy[1] > eleID->invE_minus_invP) continue;
+      // if (lep_lostHits[1] > eleID->missingHits) continue;
+      // if (lep_convVeto[1] == 0) continue;
+      // if (lep_detaIn[1] > eleID->dEtaIn) continue;                                                                           
+      // if (lep_dphiIn[1] > eleID->dPhiIn) continue;                                                                             
+      // if (lep_dxy[1] > eleID->dxy) continue;                                             
+      // // isolation
+      // if (lep_relIso03[0] > tightIsoThreshold) continue; 
+      // if (lep_relIso03[1] > looseIsoThreshold) continue; 
+
+      /////////////////////////////////////////////
+      // triggering ID                                                                                                              
+      // lep 1 
+      if (fabs(lep_eta[0]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
+      else if (fabs(lep_eta[0]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
+      else if (fabs(lep_eta[0]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
+
+      if (lep_mvaIdTrig[0] < eleTrigMVAID->mva) continue;
+      if (lep_lostHits[0] > eleTrigMVAID->maxMissingHits) continue;
+      if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
+      if (lep_relIso04[0] > eleTrigMVAID->relPFiso) continue;
+      // lep2
+      if (lep_pt[1] < 20) {
+	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_lowPt;
+	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_lowPt;
+	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_lowPt;
+      } else {
+	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
+	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
+	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
+      }
+
+      if (lep_mvaIdTrig[1] < eleTrigMVAID->mva) continue;
+      if (lep_lostHits[1] > eleTrigMVAID->maxMissingHits) continue;
+      if (lep_convVeto[1] < eleTrigMVAID->convVeto) continue;
+      if (lep_relIso04[1] > eleTrigMVAID->relPFiso) continue;
+      //////////////////////////////////////////
 
     }
 
@@ -571,10 +616,9 @@ void plotDistributions(const string& outputDIR = "./",
   hvarName.push_back("hlep2pt");      rebinFactor.push_back(1);
   hvarName.push_back("hzmass");      rebinFactor.push_back(1);
   hvarName.push_back("hbosonpt");      rebinFactor.push_back(1);
-  if (isMuon) {
-    hvarName.push_back("hlep1relIso04");      rebinFactor.push_back(1);
-    hvarName.push_back("hlep2relIso04");      rebinFactor.push_back(1);
-  } else {
+  hvarName.push_back("hlep1relIso04");      rebinFactor.push_back(1);
+  hvarName.push_back("hlep2relIso04");      rebinFactor.push_back(1);
+  if (not isMuon) {
     hvarName.push_back("hlep1relIso03");      rebinFactor.push_back(1);
     hvarName.push_back("hlep2relIso03");      rebinFactor.push_back(1);
     hvarName.push_back("hlep1sigIetaIeta");      rebinFactor.push_back(1);
@@ -600,6 +644,8 @@ void plotDistributions(const string& outputDIR = "./",
   } else {
     xAxisTitle.push_back("Z(ee) mass [GeV]");
     xAxisTitle.push_back("Z(ee) p_{T} [GeV]");
+    xAxisTitle.push_back(("leading " + lepton + " isolation (#DeltaR = 0.4)").c_str());
+    xAxisTitle.push_back(("trailing " + lepton + " isolation (#DeltaR = 0.4)").c_str());
     xAxisTitle.push_back(("leading " + lepton + " isolation (#DeltaR = 0.3)").c_str());
     xAxisTitle.push_back(("trailing " + lepton + " isolation (#DeltaR = 0.3)").c_str());
     xAxisTitle.push_back(("leading " + lepton + " #sigma_{i#etai#eta}").c_str());
@@ -619,10 +665,9 @@ void plotDistributions(const string& outputDIR = "./",
   canvasTitle.push_back("ptLep2");
   canvasTitle.push_back("Zmass");
   canvasTitle.push_back("Zpt");
-  if (isMuon) {
-    canvasTitle.push_back("lep1relIso04");
-    canvasTitle.push_back("lep2relIso04");
-  } else {
+  canvasTitle.push_back("lep1relIso04");
+  canvasTitle.push_back("lep2relIso04");
+  if (not isMuon) {
     canvasTitle.push_back("lep1relIso03");
     canvasTitle.push_back("lep2relIso03"); 
     canvasTitle.push_back("lep1sigmaIetaIeta");
