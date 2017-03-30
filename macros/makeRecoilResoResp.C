@@ -1101,13 +1101,13 @@ void plotRecoilResoResp(const string& outputDIR_tmp = "./",
   //////////////////////////////////////////
 
   plotTGraph(graph_uparPlusZpt_pfmet_data, graph_uparPlusZpt_tkmet_data, graph_uparPlusZpt_pfmet_zjets, graph_uparPlusZpt_tkmet_zjets, 
-	     outputDIR, "Z p_{T} [GeV]", "u_{||} + p_{T}^{Z}  [GeV]::-10,30","graph_uparPlusZpt_vs_Zpt", isMuon);
+	     outputDIR, "p_{T}^{Z} [GeV]", "u_{||} + p_{T}^{Z}  [GeV]::-10,30","graph_uparPlusZpt_vs_Zpt", isMuon);
 
   plotTGraph(graph_uparOverZpt_pfmet_data, graph_uparOverZpt_tkmet_data, graph_uparOverZpt_pfmet_zjets, graph_uparOverZpt_tkmet_zjets, 
-	     outputDIR, "Z p_{T} [GeV]", "u_{||} / p_{T}^{Z}::0.0,1.5","graph_uparOverZpt_vs_Zpt", isMuon);
+	     outputDIR, "p_{T}^{Z} [GeV]", "u_{||} / p_{T}^{Z}::0.0,1.5","graph_uparOverZpt_vs_Zpt", isMuon);
 
   plotTGraph(graph_uperp_pfmet_data, graph_uperp_tkmet_data, graph_uperp_pfmet_zjets, graph_uperp_tkmet_zjets, 
-	     outputDIR, "Z p_{T} [GeV]", "u_{#perp}  [GeV]::0,25","graph_uperp_vs_Zpt", isMuon);
+	     outputDIR, "p_{T}^{Z} [GeV]", "u_{#perp}  [GeV]::0,25","graph_uperp_vs_Zpt", isMuon);
     
 
   Double_t responseCorrFactor = 0.0;  
@@ -1162,7 +1162,7 @@ void plotRecoilResoResp(const string& outputDIR_tmp = "./",
   }
 
   plotTGraph(graph_uperp_pfmet_data_respCorr, graph_uperp_tkmet_data_respCorr, graph_uperp_pfmet_zjets_respCorr, graph_uperp_tkmet_zjets_respCorr, 
-	     outputDIR, "Z p_{T} [GeV]", "u_{#perp}  [GeV]::7,32","graph_uperp_vs_Zpt_respCorr", isMuon);
+	     outputDIR, "p_{T}^{Z} [GeV]", "u_{#perp}  [GeV]::7,32","graph_uperp_vs_Zpt_respCorr", isMuon);
 
   // TFile *fRecoilCorrection = new TFile((outputDIR + "recoilCorrection.root").c_str(),"RECREATE");
   // if (!fRecoilCorrection || fRecoilCorrection->IsZombie()) {
@@ -1202,7 +1202,7 @@ void plotRecoilResoResp(const string& outputDIR_tmp = "./",
 
   plotTGraph(graph_uperp_pfmet_data_respCorr_v2, graph_uperp_tkmet_data_respCorr_v2, 
 	     graph_uperp_pfmet_zjets_respCorr_v2, graph_uperp_tkmet_zjets_respCorr_v2, 
-	     outputDIR, "Z p_{T} [GeV]", "u_{#perp}  [GeV]::7,32","graph_uperp_vs_Zpt_respCorr_v2", isMuon);
+	     outputDIR, "p_{T}^{Z} [GeV]", "u_{#perp}  [GeV]::7,32","graph_uperp_vs_Zpt_respCorr_v2", isMuon);
 
   // fRecoilCorrection->Close();
   // delete fRecoilCorrection;
