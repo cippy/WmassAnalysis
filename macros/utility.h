@@ -76,7 +76,7 @@
 using namespace std;
 
 //static string treeLocation = "/store/group/phys_smp/Wmass/perrozzi/ntuples/ntuples_2014_05_23_53X/";
-static string treeLocation = "/u2/emanuele/MCTrees_1LEP_80X_V1/";
+//static string treeLocation = "/u2/emanuele/MCTrees_1LEP_80X_V1/";
 static string PhpToCopy = "/afs/cern.ch/user/m/mciprian/www/index.php";
 
 // define sample
@@ -127,6 +127,28 @@ public:
   Int_t missingHits;
 
 };
+
+class electronTriggeringMVAID {
+  
+public:
+ electronTriggeringMVAID(const Double_t & mva,
+			 const Double_t & relPFiso,
+			 const Int_t    & convVeto,
+			 const Int_t    & maxMissingHits     
+			 ) :
+  mva(mva),
+    relPFiso(relPFiso),
+    convVeto(convVeto),
+    maxMissingHits(maxMissingHits) {};
+  ~electronTriggeringMVAID(){};
+  
+  Double_t mva;
+  Double_t relPFiso;
+  Int_t convVeto;
+  Int_t maxMissingHits;
+
+};
+
 
 //======================================================
 
@@ -584,7 +606,9 @@ void drawTH1pair(TH1* h1, TH1* h2,
 		 const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
 		 const string& outputDIR = "./", 
 		 const string& legEntry1 = "data", const string& legEntry2 = "MC", const string& ratioPadYaxisName = "data/MC", 
-		 const Double_t lumi = -1.0, const Int_t rebinFactor = 1) 
+		 const Double_t lumi = -1.0, 
+		 const Int_t rebinFactor = 1, 
+		 const Bool_t drawPlotLogY = true) 
 {
 
   TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
@@ -660,7 +684,8 @@ void drawTH1pair(TH1* h1, TH1* h2,
   h1->GetYaxis()->SetTitleOffset(1.1);
   // h1->GetYaxis()->SetTitleOffset(0.8);  // was 1.03 without setting also the size
   h1->GetYaxis()->SetTitleSize(0.05);
-  h1->GetYaxis()->SetRangeUser(0.0, max(h1->GetMaximum(),h2->GetMaximum()) * 1.2);
+  //h1->GetYaxis()->SetRangeUser(0.0, max(h1->GetMaximum(),h2->GetMaximum()) * 1.2);
+  h1->GetYaxis()->SetRangeUser(0.0, max(h1->GetBinContent(h1->GetMaximumBin()),h2->GetBinContent(h2->GetMaximumBin())) * 1.2);
   if (setXAxisRangeFromUser) h1->GetXaxis()->SetRangeUser(xmin,xmax);
   h1->Draw("EP");
 
@@ -741,14 +766,18 @@ void drawTH1pair(TH1* h1, TH1* h2,
   canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
   canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
 
-  if (yAxisName == "a.u.") h1->GetYaxis()->SetRangeUser(max(0.0001,min(h1->GetMinimum(),h2->GetMinimum())*0.8),max(h1->GetMaximum(),h2->GetMaximum())*100);
-  else h1->GetYaxis()->SetRangeUser(max(0.001,min(h1->GetMinimum(),h2->GetMinimum())*0.8),max(h1->GetMaximum(),h2->GetMaximum())*100);
-  canvas->SetLogy();
-  /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
-  /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
-  canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
-  canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
-  canvas->SetLogy(0);
+  if (drawPlotLogY) {
+
+    if (yAxisName == "a.u.") h1->GetYaxis()->SetRangeUser(max(0.0001,min(h1->GetMinimum(),h2->GetMinimum())*0.8),max(h1->GetMaximum(),h2->GetMaximum())*100);
+    else h1->GetYaxis()->SetRangeUser(max(0.001,min(h1->GetMinimum(),h2->GetMinimum())*0.8),max(h1->GetMaximum(),h2->GetMaximum())*100);
+    canvas->SetLogy();
+    /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
+    /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
+    canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    canvas->SetLogy(0);
+
+  }    
 
   delete canvas;
 
@@ -1059,6 +1088,8 @@ TFitResultPtr drawTH1(TH1* h1 = NULL,
   TF1*cb1 = new TF1("cb1",&my2sideCrystalBall,histMean-4*histStdDev, histMean+4*histStdDev,7);
   cb1->SetParNames("alphaL","nL","Mean(fit)","Sigma","Const","alphaR","nR");
   cb1->SetParLimits(cb1->GetParNumber("nL"),0.1,15);
+  cb1->SetParLimits(cb1->GetParNumber("Mean(fit)"), histMean - histStdDev, histMean + histStdDev);
+  cb1->SetParLimits(cb1->GetParNumber("Sigma"),0.1 * histStdDev, 1.1 * histStdDev);
   cb1->SetParLimits(cb1->GetParNumber("nR"),0.1,15);
   cb1->SetParLimits(cb1->GetParNumber("alphaL"),-5.0,-0.1);
   cb1->SetParLimits(cb1->GetParNumber("alphaR"),0.1,5.0);
@@ -1074,15 +1105,19 @@ TFitResultPtr drawTH1(TH1* h1 = NULL,
   /*   fitFunction->SetLineWidth(2); */
   /*   fitFunction->Draw("SAME"); */
   /* } */
-  TFitResultPtr frp2 = h1->Fit(cb1,"E L I S Q B R","HE SAMES", histMean - 3.0 * histStdDev, histMean + 3.0 * histStdDev);
+  TFitResultPtr frp2 = h1->Fit(cb1,"E WL I S Q B R","HE SAMES", histMean - 3.0 * histStdDev, histMean + 3.0 * histStdDev);
   //cout << "checkpoint" << endl; return 0;
+  if (frp2->Parameter(cb1->GetParNumber("Sigma")) < 0.0 ) {
+    cout << "WARNING: CB sigma is negative!" << endl;
+  }
+
   TF1 *gaussCore = new TF1(*(h1->GetFunction("cb1")));
   if (gaussCore) {
     Double_t gaussMean = frp2->Parameter(cb1->GetParNumber("Mean(fit)"));
     Double_t gaussSigma = frp2->Parameter(cb1->GetParNumber("Sigma"));
     Double_t alphaL = frp2->Parameter(cb1->GetParNumber("alphaL"));
     Double_t alphaR = frp2->Parameter(cb1->GetParNumber("alphaR"));
-    gaussCore->DrawF1(gaussMean + gaussSigma * alphaL, gaussMean + gaussSigma * alphaR,"SAME"); // alphaL < 0, alphaR > 0
+    gaussCore->DrawF1(gaussMean + fabs(gaussSigma) * -fabs(alphaL), gaussMean + fabs(gaussSigma) * fabs(alphaR),"SAME"); // alphaL < 0, alphaR > 0
     gaussCore->SetLineColor(kRed);
     gaussCore->SetLineWidth(2);
   }
@@ -1212,7 +1247,7 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
   Int_t colorList[] = {kCyan, kViolet, kBlue, kRed, kYellow, kGreen, kOrange+1, kCyan+2, kGreen+2, kGray}; 
   // the first color is for the main object. This array may contain more values than vecMC.size()
   vector<Int_t> histColor;
-  for (UInt_t i = 0; i < vecMC.size(); i++) {   // now color are assigned in reverse order (the main contribution is the last object in the sample array)
+  for (UInt_t i = 0; i < vecMC.size(); i++) {  
     histColor.push_back(colorList[i]);
   }
 
@@ -1517,7 +1552,7 @@ Double_t getXsecOverNgen(const string& sample) {
   //QCD mu enriched
   ////////////////////
   events_ntot["QCDMuPt15"] = 21328956;
-  cross_section["QCDMuPt15"] = 80808; // 364000000 * 0.00037 * 0.6 
+  cross_section["QCDMuPt15"] = 134680; // 364000000 * 0.00037 * 0.6 // without 0.6 factor it is 134680, otherwise it is 80808
   // 0.00037 is the filter efficiency, error on efficiency is 0.000038
   // 0.6 is an hardcoded value that should make QCD MC normalization be consistent with data
  
@@ -1530,7 +1565,59 @@ Double_t getXsecOverNgen(const string& sample) {
 
 //=========================================================
 
-void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& treePath = "", const Sample& sample = Sample::data_doubleEG) {
+Double_t getXsec(const string& sample) {
+  
+  // xsec in pb
+  map<string, Double_t> cross_section;
+
+  ////////////////////
+  // ZJets
+  ////////////////////
+  cross_section["DYJetsM50"] = 3503.7;
+
+  ////////////////////
+  //WJets
+  ////////////////////
+  cross_section["WJets"] = 37509.0;
+
+  ////////////////////
+  // top
+  ////////////////////
+  cross_section["TTJets"] = 245.59;
+  cross_section["Tsch"] = 3.79;
+  cross_section["Tbarsch"] = 1.76;
+  cross_section["Ttch"] = 56.4;
+  cross_section["Tbartch"] = 30.7;
+  cross_section["TtW"] = 11.73;
+  cross_section["TbartW"] = 11.73;
+
+  ////////////////////
+  // diboson
+  ////////////////////
+  cross_section["WWJets"] = 5.995;
+  cross_section["WZJets"] = 1.057 * 1.10;
+
+  ////////////////////
+  //QCD mu enriched
+  ////////////////////
+  cross_section["QCDMuPt15"] = 134680; // 364000000 * 0.00037 * 0.6 // without 0.6 factor it is 134680, otherwise it is 80808
+  // 0.00037 is the filter efficiency, error on efficiency is 0.000038
+  // 0.6 is an hardcoded value that should make QCD MC normalization be consistent with data
+ 
+
+ // return xsec in fb
+  if (sample.find("data") != string::npos) return 1.0;
+  else                                     return cross_section[sample] * 1000.0 ;  // return xsec in fb
+
+}
+
+
+//=========================================================
+
+void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& treePath = "", const Sample& sample = Sample::data_doubleEG, 
+		    TChain* chFriend = NULL, 
+		    TChain* chSfFriend = NULL
+		    ) {
   
   cout << "Creating chain ..." << endl;
   
@@ -1570,11 +1657,11 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   } else if (sample == Sample::qcd_mu) {
     subSampleNameVector.push_back("QCDMuPt15");
   } else if (sample == Sample::qcd_ele) {
-    cout << "#### Error in buildChain() function: qcd_ele not available at the moment, please check. Exit ..." << endl;
+    cout << "#### Error in buildChain8TeV() function: qcd_ele not available at the moment, please check. Exit ..." << endl;
     exit(EXIT_FAILURE);
     //subSampleNameVector.push_back("");
   } else {
-    cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl;
+    cout << "#### Error in buildChain8TeV() function: sample name not available, please check. Exit ..." << endl;
     exit(EXIT_FAILURE);
   }
   
@@ -1582,18 +1669,92 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   
     string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
     chain->Add(TString(treeRootFile.c_str()));
-    genwgtVec.push_back(getXsecOverNgen(subSampleNameVector[i]));
+    // read number of generated files
+    TFile* ftree = new TFile(treeRootFile.c_str(),"READ");
+    if (!ftree || ftree->IsZombie()) {
+      cout << "### Error in buildChain8TeV(): couldn't open file '" << treeRootFile << "'. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+    TH1F* hCount = (TH1F*) getHistCloneFromFile(ftree,"Count","");
+    checkNotNullPtr(hCount,"hCount");
+    genwgtVec.push_back(getXsec(subSampleNameVector[i])/hCount->GetEntries());    
+    delete hCount;
+    ftree->Close();
+    delete ftree;
 
   }
 
   if(!chain ) {
-    cout << "#### Error in buildChain() function: chain not created. End of programme" << endl;
+    cout << "#### Error in buildChain8TeV() function: chain not created. End of programme" << endl;
     exit(EXIT_FAILURE);
   }
 
   cout << "entries in chain    = " << chain->   GetEntries() << endl;
 
+  // friend
+  if (chFriend != NULL) {
+
+    for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
+  
+      string friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root";
+      chFriend->Add(TString(friend_treeRootFile.c_str()));
+
+    }
+
+    if(!chFriend ) {
+      cout << "#### Error in buildChain8TeV() function: chFriend not created. End of programme" << endl;
+      exit(EXIT_FAILURE);
+    }
+
+    cout << "Adding friend to chain ..." << endl;
+    chain->AddFriend(chFriend); //adding whole friend chain as friend   
+    cout << "entries in chFriend = " << chFriend->GetEntries() << endl;
+    
+    if (chain->GetEntries() != chFriend->GetEntries()) {
+      cout << "#### Error in buildChain8TeV() function: chain and chFriend have different number of events." << endl;      
+      cout << "sample: " << getStringFromEnumSample(sample) << endl;
+      cout << "chain: " << chain->GetEntries() << endl;
+      cout << "chFriend: " << chFriend->GetEntries() << endl;
+      cout << "#### End of programme" << endl;
+      exit(EXIT_FAILURE);
+    }
+
+  }
+
+  // SF friend
+  if (chSfFriend != NULL) {
+
+    for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
+  
+      string friend_treeRootFile = treePath + "friends/sfFriend_" + subSampleNameVector[i]+ ".root";
+      chSfFriend->Add(TString(friend_treeRootFile.c_str()));
+
+    }
+
+    if(!chSfFriend ) {
+      cout << "#### Error in buildChain8TeV() function: chSfFriend not created. End of programme" << endl;
+      exit(EXIT_FAILURE);
+    }
+
+    cout << "Adding SF friend to chain ..." << endl;
+    chain->AddFriend(chSfFriend); //adding whole friend chain as friend   
+    cout << "entries in chSfFriend = " << chSfFriend->GetEntries() << endl;
+    
+    if (chain->GetEntries() != chSfFriend->GetEntries()) {
+      cout << "#### Error in buildChain8TeV() function: chain and chSfFriend have different number of events." << endl;      
+      cout << "sample: " << getStringFromEnumSample(sample) << endl;
+      cout << "chain: " << chain->GetEntries() << endl;
+      cout << "chSfFriend: " << chSfFriend->GetEntries() << endl;
+      cout << "#### End of programme" << endl;
+      exit(EXIT_FAILURE);
+    }
+
+  }
+
+
 }
+
+
 
 //=========================================================
 

@@ -113,7 +113,7 @@ void makeRooFit(TH1* hist) {
   setTDRStyle();
 
   //  canvas->SaveAs("/afs/cern.ch/user/m/mciprian/www/test_plot/rayleigh.png");
-  canvas->SaveAs("/afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_bkg.png");
+  canvas->SaveAs("/afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_sig_new.png");
 
   cout << "CB fit parameters" << endl;
   RooRealVar* mean_fitresult = (RooRealVar*) rcb->floatParsFinal().find("mean_sig");
@@ -129,8 +129,9 @@ void makeRooFit(TH1* hist) {
 //============================================================                                                                                                              
 
 
-void makeTH1Fit(const string& inputFileName_sigReg = "wmass_varhists.root",		  
-		const Bool_t isMuon = false
+void makeTH1Fit(const string& inputFileName = "wmass_varhists.root",		  
+		const Bool_t isMuon = false,
+		const Int_t fit_qcd0_AllOtherBkg1 = 0
 		) {
 
   gStyle->SetOptFit();
@@ -140,23 +141,51 @@ void makeTH1Fit(const string& inputFileName_sigReg = "wmass_varhists.root",
 
   cout << endl;
 
-  TH1D* hvar_sigReg = NULL;
+  TH1D* hvar = NULL;
   
-  TFile* inputFile_sigReg = new TFile(inputFileName_sigReg.c_str(),"READ");
-  if (!inputFile_sigReg || inputFile_sigReg->IsZombie()) {
+  TFile* inputFile = new TFile(inputFileName.c_str(),"READ");
+  if (!inputFile || inputFile->IsZombie()) {
     cout << "Error: signal file not opened. Exit" << endl;
     exit(EXIT_FAILURE);
   }
   
-  inputFile_sigReg->cd();
-  if (isMuon) hvar_sigReg   = (TH1D*) getHistCloneFromFile(inputFile_sigReg, "hmT", "qcd_mu");
-  else        hvar_sigReg   = (TH1D*) getHistCloneFromFile(inputFile_sigReg, "hmT", "qcd_ele");
-  checkNotNullPtr(hvar_sigReg,"hvar_sigReg");
+  inputFile->cd();
 
-  myRebinHisto(hvar_sigReg,3);
-  hvar_sigReg->Scale(1./hvar_sigReg->Integral());
-  makeRooFit(hvar_sigReg);
+  if (fit_qcd0_AllOtherBkg1 == 0) {
+    
+    if (isMuon) hvar   = (TH1D*) getHistCloneFromFile(inputFile, "hmT", "qcd_mu");
+    else        hvar   = (TH1D*) getHistCloneFromFile(inputFile, "hmT", "qcd_ele");
+    checkNotNullPtr(hvar,"hvar");
+    
+    myRebinHisto(hvar,3);
+    hvar->Scale(1./hvar->Integral());
+    makeRooFit(hvar);
+    
+  } else if (fit_qcd0_AllOtherBkg1 == 1) {
 
+    vector<TH1*> hbkgs;
+    hbkgs.push_back( (TH1D*) getHistCloneFromFile(inputFile, "hmT", "zjets") );
+    checkNotNullPtr(hbkgs.back(),"hbkgs-zjets");
+    hbkgs.push_back( (TH1D*) getHistCloneFromFile(inputFile, "hmT", "top") );
+    checkNotNullPtr(hbkgs.back(),"hbkgs-top");
+    hbkgs.push_back( (TH1D*) getHistCloneFromFile(inputFile, "hmT", "diboson") );
+    checkNotNullPtr(hbkgs.back(),"hbkgs-diboson");
+
+    vector<string> legBkgs;
+    legBkgs.push_back("Z(ll)+jets");    
+    legBkgs.push_back("t#bar{t}, single top");    
+    legBkgs.push_back("WW, WZ");    
+
+    drawTH1MCstack(hbkgs,
+		   "W transverse mass [GeV]", "Events", "bkgsNoQCD_wmassSR",
+		   "/afs/cern.ch/user/m/mciprian/www/test_plot/",
+		   legBkgs,
+		   -1,1
+		   );
+
+
+  }
+  
   cout << endl;
 
 }

@@ -125,11 +125,11 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
   electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
 
-  electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);                                                                                                       
-  electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);                                                                                                      
+  electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);                        
+  electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);                                        
   electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);  
 
-  electronTriggeringMVAID* eleTrigMVAID = NULL; //                                                                                                                          
+  electronTriggeringMVAID* eleTrigMVAID = NULL; //                                         
 
   Double_t eleIso03thr_QCD = 0.1;
   Double_t eleIso04thr_QCD = 0.15;
@@ -241,6 +241,9 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
     hlep2sigIetaIeta = new TH1D("hlep2sigIetaIeta","",25, 0.0, 0.025);
   }
 
+  TH2D* h2_uparPlusZpt_uperp_tkmet = new TH2D("h2_uparPlusZpt_uperp_tkmet","",15, 0.0, 30, 30, 0.0, 60.0);
+  TH2D* h2_uparPlusZpt_uperp_pfmet = new TH2D("h2_uparPlusZpt_uperp_pfmet","",15, 0.0, 30, 30, 0.0, 60.0);
+
   TH1D* hzptMean = new TH1D("hzptMean","",zptBins.size()-1,zptBins.data());
 
   ////////////////////////////////////////////                                                         
@@ -269,7 +272,7 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
     if ((lep_pdgId[0] + lep_pdgId[1]) != 0) continue;  
     if (lep_pt[0] < 30.0 || lep_pt[1] < 10.0) continue;
     if (fabs(lep_eta[0]) > lepEtaThreshold || fabs(lep_eta[1]) > lepEtaThreshold) continue; 
-    if (lep_trgMatch[0] < 0.5 || lep_trgMatch[1] < 0.5) continue;
+    // if (lep_trgMatch[0] < 0.5 || lep_trgMatch[1] < 0.5) continue; // avoid using it for now, it could be ill-defined    
 
     // tight ID on leading lepton
     if (isMuon) {
@@ -415,6 +418,8 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
     Double_t recoil_par_plusZpt = recoil_par + zRecoPt;
     Double_t recoil_par_overZpt = (zRecoPt > 0.0) ? recoil_par/zRecoPt : 1.0;
 
+    h2_uparPlusZpt_uperp_tkmet->Fill(recoil_par_plusZpt, recoil_perp, wgt);
+
     recoilTkmet.at(ptbin).upar_plusZpt->Fill(recoil_par_plusZpt,wgt);
     recoilTkmet.at(ptbin).upar_overZpt->Fill(recoil_par_overZpt,wgt);
     recoilTkmet.at(ptbin).uperp->Fill(recoil_perp,wgt);
@@ -427,6 +432,8 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
     recoil_perp = recoilRecoPf.Mod() * sin(recoilRecoPf.DeltaPhi(zReco2D));
     recoil_par_plusZpt = recoil_par + zRecoPt;
     recoil_par_overZpt = (zRecoPt > 0.0) ? recoil_par/zRecoPt : 1.0;
+
+    h2_uparPlusZpt_uperp_pfmet->Fill(recoil_par_plusZpt, recoil_perp, wgt);
 
     recoilPfmet.at(ptbin).upar_plusZpt->Fill(recoil_par_plusZpt,wgt);
     recoilPfmet.at(ptbin).upar_overZpt->Fill(recoil_par_overZpt,wgt);
@@ -711,6 +718,54 @@ void plotDistributions(const string& outputDIR = "./",
     drawTH1dataMCstack(hdata, stackElementMC, xAxisTitle[i], "Events", canvasTitle[i], outputDIR, "data", stackLegendMC, "data/MC", intLumi, rebinFactor[i]);
 
   }
+
+  ////////////////////////////////////////////                                        
+  // tmp plot to be removed to adjust settings in CMS_lumi                         
+  TH2D* h2tmp = new TH2D("h2tmp","",2,0,2,2,0,2);
+  h2tmp->Fill(0.8,0.8,4);
+  h2tmp->Fill(0.5,1.2,2);
+  h2tmp->Fill(1.2,1.1,5);
+  h2tmp->Fill(1.8,0.5,3);
+  drawCorrelationPlot(h2tmp, "variable 1", "variable 2", "tmpToBeRemoved", "tmp object", outputDIR);
+  system(("rm " + outputDIR + "*tmpToBeRemoved*").c_str());
+  delete h2tmp;
+  ////////////////////////////////////////////    
+
+  TH2D* h2data = NULL;
+  TH2D* h2zjets = NULL;
+  string Ztype = isMuon ? "Z(#mu#mu)+jets" : "Z(ee)+jets";
+  ////////////////////////////////////////
+  // for track MET
+  if (isMuon) {
+    h2data  = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_tkmet", "data_doubleMu");
+  } else {
+    h2data  = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_tkmet", "data_doubleEG");
+  }
+  h2zjets = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_tkmet", "zjets");
+  
+  checkNotNullPtr(h2data,"h2data");
+  checkNotNullPtr(h2zjets,"h2zjets");
+
+  drawCorrelationPlot(h2data, "u_{||} + p_{T}^{Z}  [GeV]", "u_{#perp}  [GeV]", "correlation_uparPlusZpt_uperp_tkmet_data","data: track MET", outputDIR, 1);
+  drawCorrelationPlot(h2zjets, "u_{||} + p_{T}^{Z}  [GeV]", "u_{#perp}  [GeV]", "correlation_uparPlusZpt_uperp_tkmet_zjets",Ztype + " : track MET", outputDIR, 1);
+  ////////////////////////////////////////
+  // for PF MET
+  if (isMuon) {
+    h2data  = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_pfmet", "data_doubleMu");
+  } else {
+    h2data  = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_pfmet", "data_doubleEG");
+  }
+  h2zjets = (TH2D*) getHist2CloneFromFile(inputFile, "h2_uparPlusZpt_uperp_pfmet", "zjets");
+  
+  checkNotNullPtr(h2data,"h2data");
+  checkNotNullPtr(h2zjets,"h2zjets");
+
+  drawCorrelationPlot(h2data, "u_{||} + p_{T}^{Z}  [GeV]", "u_{#perp}  [GeV]", "correlation_uparPlusZpt_uperp_pfmet_data","data: PF MET", outputDIR, 1);
+  drawCorrelationPlot(h2zjets, "u_{||} + p_{T}^{Z}  [GeV]", "u_{#perp}  [GeV]", "correlation_uparPlusZpt_uperp_pfmet_zjets",Ztype + " : PF MET", outputDIR, 1);
+
+  delete h2data;
+  delete h2zjets;
+  //////////////////////////////////////////////////////
 
   inputFile->Close();
   cout << endl;
@@ -1170,35 +1225,53 @@ void plotRecoilResoResp(const string& outputDIR_tmp = "./",
   //   exit(EXIT_FAILURE);
   // }
   // fRecoilCorrection->cd();
-  hRecoilRresponseCorrFactor_tkmet_zjets->Write();
-  hRecoilRresponseCorrFactor_pfmet_zjets->Write();
-  hRecoilRresponseCorrFactor_tkmet_data->Write();
-  hRecoilRresponseCorrFactor_pfmet_data->Write();
+  hRecoilRresponseCorrFactor_tkmet_zjets->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactor_pfmet_zjets->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactor_tkmet_data->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactor_pfmet_data->Write(0,TObject::kOverwrite);
 
   TGraphErrors *graph_uperp_tkmet_zjets_respCorr_v2 = new TGraphErrors();
   TGraphErrors *graph_uperp_pfmet_zjets_respCorr_v2 = new TGraphErrors();
   TGraphErrors *graph_uperp_tkmet_data_respCorr_v2 = new TGraphErrors();
   TGraphErrors *graph_uperp_pfmet_data_respCorr_v2 = new TGraphErrors();
 
+  TH1D* hRecoilRresponseCorrFactorV2_tkmet_data = new TH1D("hRecoilResponseCorrFactorV2_tkmet_data","",zptBins.size()-1,zptBins.data());
+  TH1D* hRecoilRresponseCorrFactorV2_pfmet_data = new TH1D("hRecoilResponseCorrFactorV2_pfmet_data","",zptBins.size()-1,zptBins.data());
+  TH1D* hRecoilRresponseCorrFactorV2_tkmet_zjets = new TH1D("hRecoilResponseCorrFactorV2_tkmet_zjets","",zptBins.size()-1,zptBins.data());
+  TH1D* hRecoilRresponseCorrFactorV2_pfmet_zjets = new TH1D("hRecoilResponseCorrFactorV2_pfmet_zjets","",zptBins.size()-1,zptBins.data());
+
   for (Int_t ip = 0; ip < graph_uperp_tkmet_zjets->GetN(); ip++) {
     //
     graph_uparOverZpt_tkmet_zjets->GetPoint(ip, xvalue, responseCorrFactor); 
     graph_uperp_tkmet_zjets->GetPoint(ip, xvalue, yvalue);
-    graph_uperp_tkmet_zjets_respCorr_v2->SetPoint(ip, xvalue, yvalue / responseCorrFactor);
+    responseCorrFactor = 1./responseCorrFactor;
+    graph_uperp_tkmet_zjets_respCorr_v2->SetPoint(ip, xvalue, yvalue * responseCorrFactor);
+    hRecoilRresponseCorrFactorV2_tkmet_zjets->Fill(xvalue, responseCorrFactor);
     //
     graph_uparOverZpt_pfmet_zjets->GetPoint(ip, xvalue, responseCorrFactor); 
     graph_uperp_pfmet_zjets->GetPoint(ip, xvalue, yvalue);
-    graph_uperp_pfmet_zjets_respCorr_v2->SetPoint(ip, xvalue, yvalue / responseCorrFactor);
+    responseCorrFactor = 1./responseCorrFactor;
+    graph_uperp_pfmet_zjets_respCorr_v2->SetPoint(ip, xvalue, yvalue * responseCorrFactor);
+    hRecoilRresponseCorrFactorV2_pfmet_zjets->Fill(xvalue, responseCorrFactor);
     //
     graph_uparOverZpt_tkmet_data->GetPoint(ip, xvalue, responseCorrFactor); 
     graph_uperp_tkmet_data->GetPoint(ip, xvalue, yvalue);
-    graph_uperp_tkmet_data_respCorr_v2->SetPoint(ip, xvalue, yvalue / responseCorrFactor);
+    responseCorrFactor = 1./responseCorrFactor;
+    graph_uperp_tkmet_data_respCorr_v2->SetPoint(ip, xvalue, yvalue * responseCorrFactor);
+    hRecoilRresponseCorrFactorV2_tkmet_data->Fill(xvalue, responseCorrFactor);
     //
     graph_uparOverZpt_pfmet_data->GetPoint(ip, xvalue, responseCorrFactor); 
     graph_uperp_pfmet_data->GetPoint(ip, xvalue, yvalue);
-    graph_uperp_pfmet_data_respCorr_v2->SetPoint(ip, xvalue, yvalue / responseCorrFactor);
+    responseCorrFactor = 1./responseCorrFactor;
+    graph_uperp_pfmet_data_respCorr_v2->SetPoint(ip, xvalue, yvalue * responseCorrFactor);
+    hRecoilRresponseCorrFactorV2_pfmet_data->Fill(xvalue, responseCorrFactor);
     //
   }
+
+  hRecoilRresponseCorrFactorV2_tkmet_zjets->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactorV2_pfmet_zjets->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactorV2_tkmet_data->Write(0,TObject::kOverwrite);
+  hRecoilRresponseCorrFactorV2_pfmet_data->Write(0,TObject::kOverwrite);
 
   plotTGraph(graph_uperp_pfmet_data_respCorr_v2, graph_uperp_tkmet_data_respCorr_v2, 
 	     graph_uperp_pfmet_zjets_respCorr_v2, graph_uperp_tkmet_zjets_respCorr_v2, 

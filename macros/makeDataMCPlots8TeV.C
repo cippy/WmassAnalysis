@@ -57,24 +57,27 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   hvarName.push_back("hpfmet");      rebinFactor.push_back(2);
   hvarName.push_back("htkmet");      rebinFactor.push_back(2);
   hvarName.push_back("hlep1pt");      rebinFactor.push_back(1);
+  hvarName.push_back("hlep1pt2");      rebinFactor.push_back(2);
   hvarName.push_back("hlep2pt");      rebinFactor.push_back(1);
   hvarName.push_back("hbosonpt");      rebinFactor.push_back(1);
-  hvarName.push_back("hbosonpt_wlike");      rebinFactor.push_back(1);
+  // hvarName.push_back("hbosonpt_wlike");      rebinFactor.push_back(1);
   hvarName.push_back("hmT");      rebinFactor.push_back(2);
+  hvarName.push_back("hmT2over4");      rebinFactor.push_back(4);
   hvarName.push_back("hrecoil");      rebinFactor.push_back(1);
   hvarName.push_back("hdxy");      rebinFactor.push_back(1);
-  if (isMuon) {
-    hvarName.push_back("hlep1relIso04");      rebinFactor.push_back(1);   
-    hvarName.push_back("hlep1relIso04_noIsoCut");      rebinFactor.push_back(1);   
-  } else {
+  hvarName.push_back("hdphiLepMet");      rebinFactor.push_back(1);
+  hvarName.push_back("hlep1relIso04");      rebinFactor.push_back(1);   
+  hvarName.push_back("hlep1relIso04_noIsoCut");      rebinFactor.push_back(1);   
+  if (not isMuon) {
     hvarName.push_back("hlep1sigIetaIeta");      rebinFactor.push_back(1);
     hvarName.push_back("hlep1relIso03");      rebinFactor.push_back(2);
     hvarName.push_back("hlep1r9");      rebinFactor.push_back(1);     
-    hvarName.push_back("hdetaIn_noCut");      rebinFactor.push_back(1);     
-    hvarName.push_back("hdphiIn_noCut");      rebinFactor.push_back(1);     
-    hvarName.push_back("hdxy_noCut");      rebinFactor.push_back(1);     
+    hvarName.push_back("hdetaIn");      rebinFactor.push_back(1);     
+    hvarName.push_back("hdphiIn");      rebinFactor.push_back(1);     
+    // hvarName.push_back("hdetaIn_noCut");      rebinFactor.push_back(1);     
+    // hvarName.push_back("hdphiIn_noCut");      rebinFactor.push_back(1);     
+    // hvarName.push_back("hdxy_noCut");      rebinFactor.push_back(1);     
   }
-  if (not isWregion) { hvarName.push_back("hmZ");  rebinFactor.push_back(1); }
 
   for (UInt_t i = 0; i < hvarName.size(); i++) {
     if (separatePositiveAndNegative == 1) hvarName[i] = hvarName[i] + "_plus";
@@ -88,31 +91,36 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   xAxisTitle.push_back("PF E_{T}^{miss} [GeV]");
   xAxisTitle.push_back("tracker E_{T}^{miss} [GeV]");
   xAxisTitle.push_back((lepton + " p_{T} [GeV]").c_str());
+  xAxisTitle.push_back((lepton + " p_{T}^{2} [GeV^{2}]::850,3100").c_str());
   if (isWregion) {
     if (useTrackMet) xAxisTitle.push_back("tracker E_{T}^{miss} (neutrino p_{T}) [GeV]");
     else xAxisTitle.push_back("PF E_{T}^{miss} (neutrino p_{T}) [GeV]");
   }
   else xAxisTitle.push_back("E_{T}^{miss} W-like (E_{T,no-lep2}^{miss}) [GeV]");
   xAxisTitle.push_back("boson p_{T} [GeV]");
-  xAxisTitle.push_back("boson p_{T} (W-like) [GeV]");
-  if (isWregion) xAxisTitle.push_back("W transverse mass [GeV]");
-  else xAxisTitle.push_back("Z transverse mass (W-like) [GeV]");
+  //xAxisTitle.push_back("boson p_{T} (W-like) [GeV]");
+  if (isWregion) {
+    xAxisTitle.push_back("W transverse mass [GeV]");
+    xAxisTitle.push_back("W m_{T}^{2}/4 [GeV^{2}]");
+  }
+  else {
+    xAxisTitle.push_back("Z transverse mass (W-like) [GeV]");
+    xAxisTitle.push_back("Z m_{T}^{2}/4 (W-like) [GeV]");
+  }
   xAxisTitle.push_back("recoil [GeV]");
   xAxisTitle.push_back("track #Deltaxy [cm]");
-  if (isMuon) { 
-    xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
-    xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
-  } else {
+  xAxisTitle.push_back(("#Delta#phi(" + lepton + ",E_{T}^{miss})::1.5,3.2").c_str());
+  xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
+  xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
+  if (not isMuon) { 
     xAxisTitle.push_back((lepton + " #sigma_{i#etai#eta}").c_str());
     xAxisTitle.push_back((lepton + " isolation (relIso03)").c_str());
     xAxisTitle.push_back((lepton + " R9").c_str());
     xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
-    xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
-    xAxisTitle.push_back((lepton + " #Deltaxy [cm]").c_str());
-  }
-  if (not isWregion) {
-    if (isMuon) xAxisTitle.push_back("invariant mass(#mu^{+}#mu^{-}) [GeV]");
-    else xAxisTitle.push_back("invariant mass(e^{+}e^{-}) [GeV]");
+    xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
+    // xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
+    // xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
+    // xAxisTitle.push_back((lepton + " #Deltaxy [cm]").c_str());
   }
 
   vector<string> canvasTitle;
@@ -121,43 +129,32 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   canvasTitle.push_back("pfmet");
   canvasTitle.push_back("tkmet");
   canvasTitle.push_back("ptLep1");
+  canvasTitle.push_back("ptLep1square");
   canvasTitle.push_back("ptLep2");
   canvasTitle.push_back("ptBoson");
-  canvasTitle.push_back("ptBosonWlike");
+  //canvasTitle.push_back("ptBosonWlike");
   canvasTitle.push_back("mtBosonWlike");
+  canvasTitle.push_back("mt2over4");
   canvasTitle.push_back("recoil");
   canvasTitle.push_back("dxy");
-  if (isMuon) {
-    canvasTitle.push_back("lep1relIso04");
-    canvasTitle.push_back("lep1relIso04_noIsoCut");
-  } else {
+  canvasTitle.push_back("dphiLepMet");
+  canvasTitle.push_back("lep1relIso04");
+  canvasTitle.push_back("lep1relIso04_noIsoCut");
+  if (not isMuon) {
     canvasTitle.push_back("lep1sigmaIetaIeta");
     canvasTitle.push_back("lep1relIso03");
     canvasTitle.push_back("lep1r9");
-    canvasTitle.push_back("lep1detaIn_noCut");
-    canvasTitle.push_back("lep1dphiIn_noCut");
-    canvasTitle.push_back("lep1dxy_noCut");
-  }
-  if (not isWregion) {
-    canvasTitle.push_back("invMass");
+    // canvasTitle.push_back("lep1detaIn");
+    // canvasTitle.push_back("lep1dphiIn");
+    // canvasTitle.push_back("lep1detaIn_noCut");
+    // canvasTitle.push_back("lep1dphiIn_noCut");
+    // canvasTitle.push_back("lep1dxy_noCut");
   }
 
   //////////////////////////
   // see if using absolute or relative iso
   // add suffix about the region in canvas title
   for (UInt_t i = 0; i < canvasTitle.size(); i++) {
-
-    if (useAbsIso) {
-      if (canvasTitle[i] == "lep1relIso03") {
-	canvasTitle[i] = "lep1absIso03";
-	xAxisTitle[i] = lepton + " isolation (absIso03) [GeV]";
-      }
-      else if (canvasTitle[i] == "lep1relIso04") {
-	canvasTitle[i] = "lep1absIso04";
-	xAxisTitle[i] = lepton + " isolation (absIso04) [GeV]";
-      }
-    }
-
     canvasTitle[i] = canvasTitle[i] + "_" + plotNameID;
   }
 
@@ -214,7 +211,7 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	stackLegendMC.push_back("W(l#nu)+jets");
 	stackLegendMC.push_back("QCD");
 	stackLegendMC.push_back("Z(ll)+jets");
-	stackLegendMC.push_back("T#bar{T}, single top");
+	stackLegendMC.push_back("t#bar{t}, single top");
 	stackLegendMC.push_back("WW, WZ");
 
       } else {
@@ -222,19 +219,28 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	hwjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "wjets");
 	//hqcd   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "qcd_ele");    
 	hzjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "zjets");
+	htop   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "top");
+	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "diboson");
 
 	checkNotNullPtr(hdata,"hdata");
 	checkNotNullPtr(hwjets,"hwjets");
 	//checkNotNullPtr(hqcd,"hqcd");
 	checkNotNullPtr(hzjets,"hzjets");
+	checkNotNullPtr(htop,"htop");
+	checkNotNullPtr(hdiboson,"hdiboson");
 	
 	stackElementMC.push_back(hwjets);
 	//stackElementMC.push_back(hqcd);
 	stackElementMC.push_back(hzjets);
-	
+	stackElementMC.push_back(htop);
+	stackElementMC.push_back(hdiboson);	
+
 	stackLegendMC.push_back("W(l#nu)+jets");
 	//stackLegendMC.push_back("QCD");
 	stackLegendMC.push_back("Z(ll)+jets");
+	stackLegendMC.push_back("t#bar{t}, single top");
+	stackLegendMC.push_back("WW, WZ");
+
       }      
 
 

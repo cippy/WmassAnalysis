@@ -17,9 +17,9 @@ using namespace std;
 
 void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Bool_t plotOnlyCombined = true) {
 
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_tkmet10/";
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
     
-  string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V1/";
+  string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
   string outfileName = "wmass_varhists.root";
 
   string outputDIR = "";
@@ -56,25 +56,29 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
 
     /////////////////////
     // Wenu
-    outputDIR = outputPath + "Wenu/";
-    QCD_enriched_region = "false";
-    isMuon = "false";
-    command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 1) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }
+    if (skip_no0_cut1_invCut2 != 1) {
 
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	if (i > 0 && plotOnlyCombined) break;
-	plotCommand = "makeDataMCPlots8TeV(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+      outputDIR = outputPath + "Wenu/";
+      QCD_enriched_region = "false";
+      isMuon = "false";
+      command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
       }
+
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 0; i < 3; i++) {
+	  if (i > 0 && plotOnlyCombined) break;
+	  plotCommand = "makeDataMCPlots8TeV(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
+      }
+      cout << endl;
+
     }
-    cout << endl;
 
     //correlationCommand = "makeCorrelationStudy8TeV(\"" + outputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
 
@@ -119,25 +123,29 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
 
     /////////////////////
     // Wmunu
-    outputDIR = outputPath + "Wmunu/";
-    QCD_enriched_region = "false";
-    isMuon = "true";
-    command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 1) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }
-
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	if (i > 0 && plotOnlyCombined) break;
-	plotCommand = "makeDataMCPlots8TeV(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+    if (skip_no0_cut1_invCut2 != 2) {
+     
+      outputDIR = outputPath + "Wmunu/";
+      QCD_enriched_region = "false";
+      isMuon = "true";
+      command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
       }
+
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 0; i < 3; i++) {
+	  if (i > 0 && plotOnlyCombined) break;
+	  plotCommand = "makeDataMCPlots8TeV(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
+      }
+      cout << endl;
+
     }
-    cout << endl;
 
     //////////////////////
     // Wmunu inverted iso cut
@@ -147,7 +155,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
       QCD_enriched_region = "true";
       isMuon = "true";
       command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-      if (skip_no0_sel1_plot2 != 2) {
+      if (skip_no0_sel1_plot2 != 1) {
 	cout << command << endl;
 	gROOT->ProcessLine(command.c_str());
       }  
@@ -179,9 +187,9 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
 
   ///////////////////////////////////
   // Z region
-  isWregion = "false";
-  cout << endl;
-  cout << "Z REGION" << endl;
+  // isWregion = "false";
+  // cout << endl;
+  // cout << "Z REGION" << endl;
   cout << endl;
 
 
