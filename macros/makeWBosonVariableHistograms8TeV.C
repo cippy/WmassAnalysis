@@ -4,10 +4,10 @@
 
 #define PFMET_CUT 0.0 // global PFMET cut (both SR and CR): met > this
 #define TKMET_CUT 0.0 // global TKMET cut (both SR and CR): met > this
-#define QCD_INVERTED_DXY_THR 0.002 // cut dxy > this  //0.005
+#define QCD_INVERTED_DXY_THR 0.00 // cut dxy > this  //0.005
 
-#define PFMET_SR 20.0 // pfmet > this value in SR
-#define PFMET_CR 20.0 // pfmet < this value in CR
+#define PFMET_SR 0.0 // pfmet > this value in SR
+#define PFMET_CR 0.0 // pfmet < this value in CR
 
 using namespace std;
 
@@ -140,7 +140,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // change directory again, when building chain something was messed up
   dirSample->cd();
   //  cout << "check" << endl;
-  
+
   TTreeReader reader (chain);
 
   TTreeReaderValue<Int_t> isData  (reader,"isData");
@@ -151,11 +151,16 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderValue<Float_t> pfmet    (reader,"met_pt");
   TTreeReaderValue<Float_t> pfmet_phi(reader,"met_phi");
 
-  // lepGood branch
-  TTreeReaderValue<Int_t> nlep  (reader,"nLepGood");
+  // LepGood for muons, LepCorr for electrons
+  string lepVarToUse = isMuon ? "nLepGood" : "nLepCorr";
+  TTreeReaderValue<Int_t> nlep  (reader,lepVarToUse.c_str());
+  lepVarToUse = isMuon ? "LepGood_pt" : "LepCorr_pt";
+  TTreeReaderArray<Float_t> lep_pt (reader,lepVarToUse.c_str());
+  lepVarToUse = isMuon ? "LepGood_eta" : "LepCorr_eta";
+  TTreeReaderArray<Float_t> lep_eta (reader,lepVarToUse.c_str());
+
+  // LepGood branch
   TTreeReaderArray<Int_t> lep_pdgId (reader,"LepGood_pdgId");
-  TTreeReaderArray<Float_t> lep_pt (reader,"LepGood_pt");
-  TTreeReaderArray<Float_t> lep_eta (reader,"LepGood_eta");
   TTreeReaderArray<Float_t> lep_phi (reader,"LepGood_phi");
   TTreeReaderArray<Float_t> lep_mass (reader,"LepGood_mass");
   TTreeReaderArray<Float_t> lep_relIso03 (reader,"LepGood_relIso03");
@@ -176,7 +181,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // 1/E - 1/p = 1/ecalEnergy - eSuperClusterOverP/ecalEnergy == (1 - eSuperClusterOverP)/ecalEnergy;
 
   // related to electron triggering MVA ID
-  TTreeReaderArray<Float_t> lep_sip3ds (reader,"LepGood_sip3d");
+  //TTreeReaderArray<Float_t> lep_sip3ds (reader,"LepGood_sip3d");
   TTreeReaderArray<Float_t> lep_mvaId (reader,"LepGood_mvaId");  // value of non triggering MVA ID
   TTreeReaderArray<Float_t> lep_mvaIdTrig (reader,"LepGood_mvaIdTrig"); // value of triggering MVA ID
 
@@ -191,6 +196,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // MC reweight
   // must activate it only for non data sample
   ///////////////////////////////
+  // use a dummy variable in trees to activate TTreeReaderValue even for data
   string dummybranch = "rho";
   if (sampleDir.find("data") == string::npos) dummybranch = "puWeight";  // PU weight. Can use this in tree because it was computed with all 8 TeV dataset
   TTreeReaderValue<Float_t> puw (reader,dummybranch.c_str());  // if running on data, create it as a branch existing in tree (it won't be used)
@@ -445,10 +451,11 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   
     cout.flush();
     if(nEvents % CHECK_EVERY_N == 0) cout<<"\r"<<"Analyzing events "<<double(nEvents)/nTotal*100<<" % ";
+    //cout << "entry : " << nEvents << endl;
     nEvents++;
 
     // to debug
-    // if (nEvents == 1000) break;
+    // if (nEvents == 100) break;
 
     if(dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName() != currentFile and currentFile != ""){ 
       currentFile = dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName();                   
@@ -463,7 +470,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     // passDetaSel = false;
     // passDxySel = false;
     passIsoSel = false;
-
+  
     // selection
     // if (*nlep != 1) continue;    // 1 leptons                                                  
     if (*nlep < 1) continue;    // at least 1 lepton, but use leading on to cut                                                   
@@ -518,16 +525,16 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       // if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
 
       // implementing electron triggering ID
-      if (lep_eleMVAPreselId[0] < 0.5 || lep_eleMVAPreselId[0] > 0.5) continue;      // trigger level ID
+      if (lep_eleMVAPreselId[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
       if (lep_eleMVAId[0] < 2) continue;      
       if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
       // relative isolation cut applied afterwards, to allow for inversion depending on the region
+
 
     }
 
     if (lep_pdgId[0] > 0) negativeLeptonHasPassedSelection = true;
     else                  positiveLeptonHasPassedSelection = true;
-
 
     if (*isData == 1) wgt = 1.0;
     else wgt = intLumi * genwgtVec[ifile] * *puw * *lepEfficiency; 
@@ -698,7 +705,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     // LEP ISO CUT AND OTHERS TO SEPARATE QCD REGION
     /////////////////////////////
     if (not passIsoSel) continue;
-
+    //cout << "passed iso sel" << endl;
+ 
     // if (isMuon) {
     //   if (not passIsoSel) continue;
     // }
@@ -724,8 +732,6 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     fillTH1(hrecoil, recoilReco.Mod(), wgt);
     fillTH1(hdxy,lep_dxy[0], wgt);
     fillTH1(hdphiLepMet, dphiLepMet, wgt);
-    fillTH1(hdetaIn, lep_detaIn[0], wgt);    
-    fillTH1(hdphiIn, lep_dphiIn[0], wgt);
 
     fillTH2(h2_mT_lep1pt, mT, lep_pt[0], wgt);
     fillTH2(h2_mT_lep1eta, mT, lep_eta[0], wgt);
@@ -747,6 +753,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     if (not isMuon) {
       fillTH1(hlep1sigIetaIeta,(Double_t) lep_sigmaIetaIeta[0], wgt);
       fillTH1(hlep1r9,(Double_t) lep_r9[0], wgt);
+      fillTH1(hdetaIn,(Double_t) lep_detaIn[0], wgt);    
+      fillTH1(hdphiIn,(Double_t) lep_dphiIn[0], wgt);
       fillTH2(h2_mT_lep1sigIetaIeta, mT, lep_sigmaIetaIeta[0], wgt);
       fillTH2(h2_mT_lep1r9, mT, lep_r9[0], wgt);
       fillTH2(h2_lep1pt_lep1sigIetaIeta, lep_pt[0], lep_sigmaIetaIeta[0], wgt);

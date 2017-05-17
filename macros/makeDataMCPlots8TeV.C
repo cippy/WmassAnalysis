@@ -116,7 +116,7 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
     xAxisTitle.push_back((lepton + " #sigma_{i#etai#eta}").c_str());
     xAxisTitle.push_back((lepton + " isolation (relIso03)").c_str());
     xAxisTitle.push_back((lepton + " R9").c_str());
-    xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
+    xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)::0.0,0.05").c_str());
     xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
     // xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
     // xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
@@ -144,8 +144,8 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
     canvasTitle.push_back("lep1sigmaIetaIeta");
     canvasTitle.push_back("lep1relIso03");
     canvasTitle.push_back("lep1r9");
-    // canvasTitle.push_back("lep1detaIn");
-    // canvasTitle.push_back("lep1dphiIn");
+    canvasTitle.push_back("lep1detaIn");
+    canvasTitle.push_back("lep1dphiIn");
     // canvasTitle.push_back("lep1detaIn_noCut");
     // canvasTitle.push_back("lep1dphiIn_noCut");
     // canvasTitle.push_back("lep1dxy_noCut");

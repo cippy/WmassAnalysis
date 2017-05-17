@@ -1668,6 +1668,10 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
   
     string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
+    if (treePath.find("TREES_1LEP_53X_V2_WSKIM_V3") != string::npos || treePath.find("TREES_1LEP_53X_V2_QCDSKIM_V3") != string::npos || treePath.find("TREES_1LEP_53X_V2_ZEESKIM_V3") != string::npos) {
+      treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/tree.root";
+    }
+
     chain->Add(TString(treeRootFile.c_str()));
     // read number of generated files
     TFile* ftree = new TFile(treeRootFile.c_str(),"READ");

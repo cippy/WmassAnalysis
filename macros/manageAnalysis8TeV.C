@@ -17,8 +17,10 @@ using namespace std;
 
 void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Bool_t plotOnlyCombined = true) {
 
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
-    
+  //  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
+  //string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/debugTest/";
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_treesV2/";
+
   string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
   string outfileName = "wmass_varhists.root";
 
@@ -58,6 +60,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // Wenu
     if (skip_no0_cut1_invCut2 != 1) {
 
+      //inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_WSKIM_V3/";
       outputDIR = outputPath + "Wenu/";
       QCD_enriched_region = "false";
       isMuon = "false";
@@ -86,6 +89,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // Wenu inverted iso cut
     if (skip_no0_cut1_invCut2 != 2) {
       
+      //inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_QCDSKIM_V3/";
       outputDIR = outputPath + "Wenu_invertIsoCut/";
       QCD_enriched_region = "true";
       isMuon = "false";
@@ -125,6 +129,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // Wmunu
     if (skip_no0_cut1_invCut2 != 2) {
      
+      inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
       outputDIR = outputPath + "Wmunu/";
       QCD_enriched_region = "false";
       isMuon = "true";
@@ -151,6 +156,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // Wmunu inverted iso cut
     if (skip_no0_cut1_invCut2 != 2) {
 
+      inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
       outputDIR = outputPath + "Wmunu_invertIsoCut/";
       QCD_enriched_region = "true";
       isMuon = "true";
