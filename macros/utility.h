@@ -80,7 +80,7 @@ using namespace std;
 static string PhpToCopy = "/afs/cern.ch/user/m/mciprian/www/index.php";
 
 // define sample
-enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, zjets, qcd_mu, qcd_ele, top, diboson};
+enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, wenujets, wmunujets, wtaunujets, zjets, qcd_mu, qcd_ele, top, diboson};
 enum LepFlavour {electron = 11, muon = 13, tau = 15};
 
 //static Double_t intLumi = 36.4;
@@ -149,6 +149,22 @@ public:
 
 };
 
+class electronCutThreshold {
+  
+public:
+ electronCutThreshold(const Double_t & deta,
+		      const Double_t & dphi
+		      ) :
+  deta(deta),
+    dphi(dphi)
+    {};
+  ~electronCutThreshold(){};
+  
+  Double_t deta;
+  Double_t dphi;
+
+};
+
 
 //======================================================
 
@@ -158,6 +174,9 @@ string getTexLabel(const string& sampleDir = "wjets") {
   if (sampleDir == "qcd_ele") label = "QCD (electron enriched)";
   else if (sampleDir == "qcd_mu") label = "QCD (muon enriched)";
   else if (sampleDir == "wjets") label = "W(l#nu)+jets";
+  else if (sampleDir == "wenujets") label = "W(e#nu)+jets";
+  else if (sampleDir == "wmunujets") label = "W(#mu#nu)+jets";
+  else if (sampleDir == "wtaunujets") label = "W(#tau#nu)+jets";
   else if (sampleDir == "zjets") label = "Z(ll)+jets";
   else if (sampleDir == "top") label = "t#bar{t}, single top";
   else if (sampleDir == "diboson") label = "WW, WZ";
@@ -253,6 +272,12 @@ string getStringFromEnumSample(const Sample& sample = Sample::zjets) {
     return "zjets";
   else if (sample == Sample::wjets)
     return "wjets";
+  else if (sample == Sample::wenujets)
+    return "wenujets";
+  else if (sample == Sample::wmunujets)
+    return "wmunujets";
+  else if (sample == Sample::wtaunujets)
+    return "wtaunujets";
   else if (sample == Sample::qcd_mu)
     return "qcd_mu";
   else if (sample == Sample::qcd_ele)
@@ -355,7 +380,7 @@ TH2* getHist2CloneFromFile(TFile* inputFile = NULL, const string& hvarName = "",
 void checkNotNullPtr(TH1* hptr, const string& ptrName = "hptr") {
 
   if ( hptr == NULL) {
-    cout << "Error: pointer " << ptrName << " is NULL. Returning false" << endl;
+    cout << "Error: pointer " << ptrName << " is NULL. Exit" << endl;
     exit(EXIT_FAILURE);
   }
 
@@ -363,10 +388,11 @@ void checkNotNullPtr(TH1* hptr, const string& ptrName = "hptr") {
 
 
 //======================================================
+
 void checkNotNullPtr(TH2* hptr, const string& ptrName = "hptr") {
 
   if ( hptr == NULL) {
-    cout << "Error: pointer " << ptrName << " is NULL. Returning false" << endl;
+    cout << "Error: pointer " << ptrName << " is NULL. Exit" << endl;
     exit(EXIT_FAILURE);
   }
 
@@ -374,6 +400,23 @@ void checkNotNullPtr(TH2* hptr, const string& ptrName = "hptr") {
 
 
 //======================================================
+
+string getStringFromDouble(const Double_t& num = 1.0, const Double_t epsilon = 0.00001) {
+  
+  Int_t i = (Int_t) num;
+  // stringstream ss;                                                                                      
+  // ss<<i;                                                                                                                         
+  // string numStr = ss.str();                                                                                         
+  Int_t int_decim = (Int_t) (1000 * (num - (Double_t) i + epsilon));
+  if      (int_decim%1000 == 0) return string(Form("%dp%d",i,int_decim/1000));
+  else if (int_decim%100 == 0)  return string(Form("%dp%d",i,int_decim/100));
+  else if (int_decim%10 == 0)   return string(Form("%dp%d",i,int_decim/10));
+  else                          return string(Form("%dp%d",i,int_decim));
+
+}
+
+//======================================================                                                                
+
 
 void fillTH1(TH1* histo, const Double_t val, const Double_t weight = 1.0, const Bool_t useOverflowBin = true) {
 
@@ -786,6 +829,231 @@ void drawTH1pair(TH1* h1, TH1* h2,
 
 //=============================================================
 
+void draw_nTH1(vector<TH1*> vecHist1d = {}, 
+	       const string& xAxisNameTmp = "", 
+	       const string& yAxisName = "Events", 
+	       const string& canvasName = "default", 
+	       const string& outputDIR = "./", 
+	       const vector<string>& vecLegEntry = {""},
+	       const string& ratioPadYaxisName = "var/nominal",
+	       const Double_t lumi = -1.0, 
+	       const Int_t rebinFactor = 1, 
+	       const Bool_t drawPlotLogY = true,
+	       const Bool_t drawRatioWithNominal = false  // to be implemented
+	       ) 
+{
+
+  // assume the "nominal histogram is the first one
+
+  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
+
+  string xAxisName = "";
+  string separator = "::";
+  Bool_t setXAxisRangeFromUser = false;
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+
+  size_t pos = xAxisNameTmp.find(separator);
+  if (pos != string::npos) {
+    string xrange = "";
+    setXAxisRangeFromUser = true;
+    xAxisName.assign(xAxisNameTmp, 0, pos); 
+    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
+    separator = ",";
+    pos = xrange.find(separator);
+    string numString = ""; 
+    numString.assign(xrange,0,pos);
+    xmin = std::stod(numString);
+    numString.assign(xrange,pos + separator.size(), string::npos);
+    xmax = std::stod(numString);
+  } else {
+    xAxisName = xAxisNameTmp;
+  }
+
+  // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
+
+  for (UInt_t i = 0; i < vecHist1d.size(); i++) {
+    myRebinHisto(vecHist1d[i],rebinFactor);
+    if (yAxisName == "a.u.") vecHist1d[i]->Scale(1./vecHist1d[i]->Integral());
+    vecHist1d[i]->SetStats(0);
+  }
+
+
+  TCanvas* canvas = new TCanvas("canvas","",600,700);
+  canvas->cd();
+  canvas->SetTickx(1);
+  canvas->SetTicky(1);
+  canvas->cd();
+  canvas->SetBottomMargin(0.3);
+  canvas->SetRightMargin(0.06);
+
+  TPad *pad2 = new TPad("pad2","pad2",0,0.,1,0.9);
+  pad2->SetTopMargin(0.7);
+  pad2->SetRightMargin(0.06);
+  pad2->SetFillColor(0);
+  pad2->SetGridy(1);
+  pad2->SetFillStyle(0);
+
+  TH1* frame =  (TH1*) vecHist1d[0]->Clone("frame");
+  frame->GetXaxis()->SetLabelSize(0.04);
+  frame->SetStats(0);
+
+  Int_t colorList[] = {kBlack, kBlue, kRed, kGreen+2, kYellow+2, kOrange+1, kGreen, kCyan+2, kGray+1, kCyan, kViolet};
+  vector<Int_t> histColor;
+  for (UInt_t i = 0; i < vecHist1d.size(); i++) {   // now color are assigned in reverse order (the main contribution is the last object in the sample array)         
+    vecHist1d[i]->SetLineColor(colorList[i]);
+    vecHist1d[i]->SetLineWidth(2);
+  }
+
+  vecHist1d[0]->GetXaxis()->SetLabelSize(0);
+  vecHist1d[0]->GetXaxis()->SetTitle(0);
+  vecHist1d[0]->GetYaxis()->SetTitle(yAxisName.c_str());
+  vecHist1d[0]->GetYaxis()->SetTitleOffset(1.1);
+  // vecHist1d[0]->GetYaxis()->SetTitleOffset(0.8);  // was 1.03 without setting also the size
+  vecHist1d[0]->GetYaxis()->SetTitleSize(0.05);
+  //vecHist1d[0]->GetYaxis()->SetRangeUser(0.0, max(vecHist1d[0]->GetMaximum(),h2->GetMaximum()) * 1.2);
+
+  //////////////////////////////
+  // set X and Y axis range
+
+  // search for maximum Y and for minimum > 0 (latter only if using log scale for Y axis
+  Double_t maxY = -999.0;
+  for (UInt_t i = 0; i < vecHist1d.size(); i++) {
+    if ( vecHist1d[i]->GetBinContent(vecHist1d[i]->GetMaximumBin()) > maxY ) maxY = vecHist1d[i]->GetBinContent(vecHist1d[i]->GetMaximumBin());
+  }
+
+  Double_t minY = 1e34;
+
+  if (drawPlotLogY) {
+
+    // quick check if there are no empty bins
+    for (UInt_t i = 0; i < vecHist1d.size(); i++) {
+      if ( vecHist1d[i]->GetBinContent(vecHist1d[i]->GetMinimumBin()) < minY ) minY = vecHist1d[i]->GetBinContent(vecHist1d[i]->GetMinimumBin());
+    }
+
+    if (fabs(minY) < 0.00000001) {
+
+      minY = 1e34;
+      
+      for (UInt_t ihist = 0; ihist < vecHist1d.size(); ihist++) {
+
+	for (Int_t ibin = 0; ibin <= vecHist1d[ihist]->GetNbinsX(); ibin++ ) {
+	  if (vecHist1d[ihist]->GetBinContent(ibin) > 0.0000001 && minY > vecHist1d[ihist]->GetBinContent(ibin)) minY = vecHist1d[ihist]->GetBinContent(ibin);
+	}      
+      
+      }
+
+    }
+
+  }
+
+  vecHist1d[0]->GetYaxis()->SetRangeUser(0.0, maxY * 1.2);
+
+  if (setXAxisRangeFromUser) vecHist1d[0]->GetXaxis()->SetRangeUser(xmin,xmax);
+  //////////////////////
+
+  vecHist1d[0]->Draw("HE");
+  vecHist1d[0]->SetFillColor(0);
+  vecHist1d[0]->SetMarkerStyle(0);
+  for (UInt_t i = 1; i < vecHist1d.size(); i++) {
+    vecHist1d[i]->Draw("hist same");
+  }
+
+  TLegend leg (0.6,0.75,0.95,0.9);
+  leg.SetFillColor(0);
+  leg.SetFillStyle(0);
+  leg.SetBorderSize(0);
+  for (UInt_t i = 0; i < vecHist1d.size(); i++) {
+    leg.AddEntry(vecHist1d[i],vecLegEntry[i].c_str(),"L");
+  }
+  leg.Draw("same");
+  canvas->RedrawAxis("sameaxis");
+
+  //  CMS_lumi(canvas,Form("%.1f",lumi));
+  if (lumi < 0) CMS_lumi(canvas,"",false,false);
+  else CMS_lumi(canvas,Form("%.1f",lumi),false,false);
+  setTDRStyle();
+
+  pad2->Draw();
+  pad2->cd();
+
+  frame->Reset("ICES");
+  if (canvasName.find("comparisonMassVariation") != string::npos) {
+    frame->GetYaxis()->SetRangeUser(0.99, 1.01);
+    /* if      (outputDIR.find("/eta_0/") != string::npos) frame->GetYaxis()->SetRangeUser(0.99, 1.01); */
+    /* else if (outputDIR.find("/eta_1/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
+    /* else if (outputDIR.find("/eta_2/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
+  }
+  else frame->GetYaxis()->SetRangeUser(0.9,1.1);
+  frame->GetYaxis()->SetNdivisions(5);
+  frame->GetYaxis()->SetTitle(ratioPadYaxisName.c_str());
+  frame->GetYaxis()->SetTitleOffset(1.2);
+  // frame->GetYaxis()->SetTitleSize(0.15);
+  frame->GetYaxis()->CenterTitle();
+  frame->GetXaxis()->SetTitle(xAxisName.c_str());
+  if (setXAxisRangeFromUser) frame->GetXaxis()->SetRangeUser(xmin,xmax);
+  // frame->GetXaxis()->SetTitleOffset(0.8);
+  frame->GetXaxis()->SetTitleSize(0.05);
+
+  vector<TH1D*> ratio;
+  for (UInt_t ivar = 1; ivar < vecHist1d.size(); ivar++) 
+    ratio.push_back( (TH1D*) vecHist1d[ivar]->Clone(Form("ratio_%d",ivar)) );
+
+  TH1D* den_noerr = (TH1D*) vecHist1d[0]->Clone("den_noerr");
+  TH1D* den = (TH1D*) vecHist1d[0]->Clone("den");
+  for(int iBin = 1; iBin < den->GetNbinsX()+1; iBin++)
+    den_noerr->SetBinError(iBin,0.);
+
+  den->Divide(den_noerr);
+  den->SetFillColor(kGray);
+  frame->Draw();
+  den->Draw("E2same");
+  for (UInt_t ir = 0; ir < ratio.size(); ir++) {
+    ratio[ir]->Divide(den_noerr);
+    // ratio[ir]->SetMarkerSize(0.65);
+    // ratio[ir]->Draw("EPsame");
+    ratio[ir]->SetMarkerStyle(0);
+    ratio[ir]->SetLineWidth(2);
+    ratio[ir]->Draw("Hist same");
+  }
+ 
+
+  TF1* line = new TF1("horiz_line","1",den->GetXaxis()->GetBinLowEdge(1),den->GetXaxis()->GetBinLowEdge(den->GetNbinsX()+1));
+  line->SetLineColor(kBlack);
+  line->SetLineWidth(2);
+  line->Draw("Lsame");
+  // for (UInt_t ir = 0; ir < ratio.size(); ir++)
+  //   ratio[ir]->Draw("EPsame");
+  pad2->RedrawAxis("sameaxis");
+
+  if (canvasName.find("tmpToBeRemoved") == string::npos) { 
+    canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
+  }
+
+  if (drawPlotLogY) {
+
+    if (yAxisName == "a.u.") vecHist1d[0]->GetYaxis()->SetRangeUser(minY*0.05, maxY*100);
+    else vecHist1d[0]->GetYaxis()->SetRangeUser(minY*0.05, maxY*100);
+    canvas->SetLogy();
+    /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
+    /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
+    if (canvasName.find("tmpToBeRemoved") == string::npos) { 
+      canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+      canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    }
+    canvas->SetLogy(0);
+
+  }    
+
+  delete canvas;
+
+}
+
+
+
+//=============================================================
+
 void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {}, 
 			const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
 			const string& outputDIR = "./", 
@@ -971,7 +1239,7 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
   /* Double_t minY_log = -1.0; */
   /* TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First(); // */
 
-  Double_t minY_log = 1e10;
+  Double_t minY_log = 1e20;
   TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
   /* if (lowerStackObject->GetBinContent(stackCopy->GetMinimumBin()) > 0.000001 ) { */
   /*   // if no empty bin in stack */
@@ -980,10 +1248,8 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
   /*   minY_log = 0.01 * stackCopy->GetBinContent(stackCopy->GetMinimumBin()); */
   /* } */
 
-  Bool_t thereAreEmptyBins = false;
   for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
-    if (lowerStackObject->GetBinContent(ibin) < 0.0000001) thereAreEmptyBins = true;
-    else if (minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
   }
 
   if (minY_log < 0.000001) minY_log = 0.1;
@@ -1308,10 +1574,8 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
   Double_t minY_log = 1e10;
   TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
 
-  Bool_t thereAreEmptyBins = false;
   for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
-    if (lowerStackObject->GetBinContent(ibin) < 0.0000001) thereAreEmptyBins = true;
-    else if (minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
   }
 
   if (minY_log < 0.000001) minY_log = 0.1;
@@ -1594,7 +1858,7 @@ Double_t getXsec(const string& sample) {
   ////////////////////
   // diboson
   ////////////////////
-  cross_section["WWJets"] = 5.995;
+  cross_section["WWJets"] = 5.81;
   cross_section["WZJets"] = 1.057 * 1.10;
 
   ////////////////////
@@ -1623,7 +1887,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   
   vector<string> subSampleNameVector;
 
-  if (sample == Sample::wjets) {
+  if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
     subSampleNameVector.push_back("WJets");
   } else if (sample == Sample::zjets) {
     subSampleNameVector.push_back("DYJetsM50");
@@ -1668,7 +1932,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
   
     string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
-    if (treePath.find("TREES_1LEP_53X_V2_WSKIM_V3") != string::npos || treePath.find("TREES_1LEP_53X_V2_QCDSKIM_V3") != string::npos || treePath.find("TREES_1LEP_53X_V2_ZEESKIM_V3") != string::npos) {
+    if (treePath.find("WSKIM_V") != string::npos || treePath.find("QCDSKIM_V") != string::npos || treePath.find("ZEESKIM_V") != string::npos) {
       treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/tree.root";
     }
 

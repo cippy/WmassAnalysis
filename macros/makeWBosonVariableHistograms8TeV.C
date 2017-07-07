@@ -6,8 +6,11 @@
 #define TKMET_CUT 0.0 // global TKMET cut (both SR and CR): met > this
 #define QCD_INVERTED_DXY_THR 0.00 // cut dxy > this  //0.005
 
-#define PFMET_SR 0.0 // pfmet > this value in SR
-#define PFMET_CR 0.0 // pfmet < this value in CR
+#define PFMET_MU_SR 20.0 // pfmet > this value in SR
+#define PFMET_MU_CR 30.0 // pfmet < this value in CR
+
+#define PFMET_ELE_SR 10.0 // pfmet > this value in SR
+#define PFMET_ELE_CR 20.0 // pfmet < this value in CR
 
 using namespace std;
 
@@ -17,8 +20,14 @@ static Double_t mtMax = 140;
 static Int_t nMt2over4Bins = 300;
 static Double_t mt2over4Min = 100;
 static Double_t mt2over4Max = 4900;
-static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_mz70to110_eleTrigID_noHLTmatch/";
+static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_treesV2/";
 static Bool_t correctRecoilResponse = false; 
+
+static Bool_t removeZtaggedEvents = false;
+
+static vector<Double_t> muEtaBinEdges_double = {0.0, 0.8, 1.6, 2.1};
+static vector<Double_t> eleEtaBinEdges_double = {0.0, 1.0, 1.479, 2.5};
+
 
 //=============================================================
 
@@ -26,6 +35,9 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 		    const Sample& sample = Sample::zjets, 
 		    TFile* outputFile = NULL, 
 		    const Bool_t QCD_enriched_region = false, const Bool_t isMuon = false) {
+
+  gROOT->SetBatch(kTRUE);
+  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2()  
 
   cout << endl;
   cout << "================================================" << endl;
@@ -43,31 +55,48 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // will use PF isolation, we don't have detector based ID in ntuples yet
   // electronID tightEleID_EB_8TeV(0.004, 0.03, 0.01, 0.12, 0.02, 0.1, 0.05);
   // electronID tightEleID_EE_8TeV(0.005, 0.02, 0.03, 0.10, 0.02, 0.1, 0.05); 
-  electronID tightEleID_EB_8TeV(0.007, 0.15, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
-  electronID tightEleID_EE_8TeV(0.009, 0.10, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1); 
+  // electronID tightEleID_EB_8TeV(0.007, 0.15, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
+  // electronID tightEleID_EE_8TeV(0.009, 0.10, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1); 
 
   // triggering MVA ID --> https://twiki.cern.ch/twiki/bin/viewauth/CMS/MultivariateElectronIdentification#Triggering_MVA
-  electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
-  electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
-  electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
+  // electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
+  // electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
+  // electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
 
   // electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);
   // electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);
   // electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);
-    
+
+  electronCutThreshold* eleCut = NULL;    
   electronID* eleID = NULL; // choose in loop for each event between EB or EE id
   electronTriggeringMVAID* eleTrigMVAID = NULL; //
 
-  Double_t eleIso03thr_QCD = 0.1; 
-  Double_t eleIso04thr_QCD = 0.15;
+  //Double_t eleIso03thr_QCD = 0.1;   // iso < this value
+  Double_t eleIso04thr = 0.15;  // iso < this value
+  Double_t eleIso04thr_QCD = 0.05;  // iso > this value
   Double_t muIso04thr = 0.12;       // 0.15,  0.2,   0.125
-  Double_t muIso04thr_QCD = 0.12;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
+  Double_t muIso04thr_QCD = 0.20;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
+
+  // value from https://twiki.cern.ch/twiki/bin/viewauth/CMS/EgammaCutBasedIdentification#Tight_Trigger_ID
+  // and from tight ID (hand-defined numbers looking at plots)
+  // Double_t eleDetaThr_EB = 0.004;  
+  // Double_t eleDetaThr_EE = 0.005;
+  // Double_t eleDphiThr_EB = 0.03;  
+  // Double_t eleDphiThr_EE = 0.02;
+
+  // container for electron selection thresholds
+  // variables are deta, dphi ..., defined in utility.h
+  electronCutThreshold eleCut_EB(0.004,0.03);   // 0.004, 0.03
+  electronCutThreshold eleCut_EE(0.005,0.02);   // 0.005, 0.02
+  // defined just to use dphi and deta cut for electrons, other cuts are not used in this code at the moment
+  // electronID myEleID_EB_8TeV(0.006, 0.07, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
+  // electronID myEleID_EE_8TeV(0.007, 0.05, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1); 
 
   // be consistent with threshold when assigning histogram boundaries
 
-  Int_t nBins_lepIso03 = 25;  // 20
+  Int_t nBins_lepIso03 = 40;  // 20
   Double_t min_lepIso03 = 0.0; // 0.0
-  Double_t max_lepIso03 = 0.1; // 0.060
+  Double_t max_lepIso03 = 0.16; // 0.060
   Int_t nBins_lepIso04 = 48;  // 30
   Double_t min_lepIso04 = 0.0; // 0.0
   Double_t max_lepIso04 = 0.12; // 0.150
@@ -79,21 +108,22 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   }
 
   if (QCD_enriched_region) {
-    nBins_lepIso03 = 180;  // 90, 85
-    min_lepIso03 = 0.1; // 0.05, 0.075
+    nBins_lepIso03 = 200;  // 90, 85
+    min_lepIso03 = 0.0; // 0.05, 0.075
     max_lepIso03 = 1.0; // 0.50
     nBins_lepIso04 = 88;  // 35,  30
     min_lepIso04 = 0.12; // 0.15, 0.2
     max_lepIso04 = 1.00; // 0.500
     if (not isMuon) {
-      nBins_lepIso04 = 85;  // 35,  30
-      min_lepIso04 = 0.15; // 0.15, 0.2
+      nBins_lepIso04 = 100;  // 35,  30
+      min_lepIso04 = 0.00; // 0.15, 0.2
       max_lepIso04 = 1.000; // 0.500
     }
   }
 
   Int_t chargedLeptonFlavour = isMuon ? 13 : 11;
-  Double_t lepEtaThreshold = isMuon ? 2.1 : 1.479;  // EB only for electron for now
+  Double_t lepEtaMaxThreshold = isMuon ? 2.1 : 2.5; // mu: 2.1 max, ele: 1.479 (EB max), 2.4 (EE max) // EB only for electron for now
+  Double_t lepEtaMinThreshold = isMuon ? -0.001 : -0.001;
   Int_t lepTightIdThreshold = isMuon ? 1 : 3;
 
   TDirectory *dirSample = NULL;
@@ -101,35 +131,21 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   cout << "Sample --> " << sampleDir << endl;
   if (outputFile->GetKey(sampleDir.c_str())) dirSample = outputFile->GetDirectory(sampleDir.c_str());
   else dirSample = outputFile->mkdir(sampleDir.c_str());
-  // if (sample == Sample::data_doubleEG)
-  //   dirSample = outputFile->mkdir("data_doubleEG");
-  // else if (sample == Sample::data_singleEG)
-  //   dirSample = outputFile->mkdir("data_singleEG");
-  // if (sample == Sample::data_doubleMu)
-  //   dirSample = outputFile->mkdir("data_doubleMu");
-  // else if (sample == Sample::data_singleMu)
-  //   dirSample = outputFile->mkdir("data_singleMu");
-  // else if (sample == Sample::zjets) 
-  //   dirSample = outputFile->mkdir("zjets");
-  // else if (sample == Sample::wjets)
-  //   dirSample = outputFile->mkdir("wjets");
-  // else if (sample == Sample::qcd_mu)
-  //   dirSample = outputFile->mkdir("qcd_mu");
-  // else if (sample == Sample::qcd_ele)
-  //   dirSample = outputFile->mkdir("qcd_ele");
-  // else if (sample == Sample::top)
-  //   dirSample = outputFile->mkdir("top");
-  // else if (sample == Sample::diboson)
-  //   dirSample = outputFile->mkdir("diboson");
-
   dirSample->cd();
-
-  gROOT->SetBatch(kTRUE);
-  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2()  
 
   cout << endl;
 
-  TChain* chain = new TChain("treeProducerWMassEle");  
+  Bool_t useEleSkimmedSample = false;
+  string treeName = "treeProducerWMassEle";
+  if (inputDIR.find("WSKIM_V") != string::npos || 
+      inputDIR.find("QCDSKIM_V") != string::npos || 
+      inputDIR.find("ZEESKIM_V") != string::npos) 
+    {
+      useEleSkimmedSample = true;
+      treeName = "tree";  
+    }
+
+  TChain* chain = new TChain(treeName.c_str());
   TChain* friendChain = new TChain("mjvars/t");  // leave as NULL if you don't use friend trees
   TChain* SfFriendChain = NULL;
   if (sampleDir.find("data") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees
@@ -187,36 +203,70 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   TTreeReaderArray<Int_t> lep_eleMVAId (reader,"LepGood_eleMVAId"); // 
   TTreeReaderArray<Int_t> lep_convVetoFull (reader,"LepGood_convVetoFull"); // like conVetoFull, but also includes no missing hits
-  TTreeReaderArray<Float_t> lep_eleMVAPreselId (reader,"LepGood_eleMVAPreselId");
+
+  TTreeReaderArray<Float_t>* lep_eleMVAPreselId  = NULL;
+  if (not useEleSkimmedSample) lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
 
   // other electron related branch
   TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_scEta");
   TTreeReaderArray<Float_t> lep_r9 (reader,"LepGood_r9");
   
+  // cout << "CHECK 1" << endl;
+
   // MC reweight
   // must activate it only for non data sample
   ///////////////////////////////
   // use a dummy variable in trees to activate TTreeReaderValue even for data
-  string dummybranch = "rho";
-  if (sampleDir.find("data") == string::npos) dummybranch = "puWeight";  // PU weight. Can use this in tree because it was computed with all 8 TeV dataset
-  TTreeReaderValue<Float_t> puw (reader,dummybranch.c_str());  // if running on data, create it as a branch existing in tree (it won't be used)
-  dummybranch = "m2l";
-  if (sampleDir.find("data") == string::npos) dummybranch = "SF_LepTight_1l";
-  TTreeReaderValue<Float_t> lepEfficiency (reader,dummybranch.c_str());
+  TTreeReaderValue<Float_t> *lepEfficiency = NULL;
+  TTreeReaderValue<Float_t> *puw = NULL; 
+  TTreeReaderArray<Float_t> *mwWeight = NULL;
+  //TTreeReaderValue<Int_t> *nWMassSteps = NULL;
+  if (sampleDir.find("data") == string::npos) {
+    lepEfficiency = new TTreeReaderValue<Float_t>(reader, "SF_LepTight_1l");
+    puw = new TTreeReaderValue<Float_t>(reader, "puWeight");
+    mwWeight = new TTreeReaderArray<Float_t>(reader, "mwWeight"); // mass weight
+    //nWMassSteps = new TTreeReaderValue<Int_t>(reader, "nWMassSteps"); // number of weights, not used, value chosen by user and put in nMassWeights
+  }
+  Int_t nMassWeights = 0;  // set below by reading the tree (it is the same number for each entry, I just need to read the first one 
+  // cout << "CHECK 2" << endl;
 
   // Match of lepton with trigger object 
   TTreeReaderValue<Int_t> HLT_SingleMu (reader,"HLT_SingleMu");
   TTreeReaderValue<Int_t> HLT_SingleEl (reader,"HLT_SingleEl");
   //TTreeReaderArray<Float_t> lep_trgMatch (reader,"LepGood_trgMatch");
 
-  //cout << "check 2" << endl;
+  // Gen particles
+  //Bool_t isWJetsSample = false;
+  Int_t WJetsGenDaughterPdgId = 0;  // avoid using the boolean above, if this integer is > 0 then we are considering a wjets sample
+  if (sampleDir.find("wenujets") != string::npos) {
+    WJetsGenDaughterPdgId = 11;
+  } else if (sampleDir.find("wmunujets") != string::npos) {
+    WJetsGenDaughterPdgId = 13;
+  } else if (sampleDir.find("wtaunujets") != string::npos) {
+    WJetsGenDaughterPdgId = 15;
+  }
+ 
+  TTreeReaderValue<Int_t> *nGenP6StatusThree = NULL;
+  TTreeReaderArray<Int_t> *GenP6StatusThree_pdgId = NULL;
+  TTreeReaderArray<Int_t> *GenP6StatusThree_motherId = NULL;
+  if (WJetsGenDaughterPdgId > 0 ) {
+    nGenP6StatusThree = new TTreeReaderValue<Int_t>(reader,"nGenP6StatusThree"); 
+    GenP6StatusThree_pdgId = new TTreeReaderArray<Int_t>(reader,"GenP6StatusThree_pdgId");
+    GenP6StatusThree_motherId = new TTreeReaderArray<Int_t>(reader,"GenP6StatusThree_motherId");
+  }
+  //TTreeReaderValue<Int_t> nGenP6StatusThree(reader,"nGenP6StatusThree");
+  // TTreeReaderArray<Int_t> GenP6StatusThree_pdgId(reader,"GenP6StatusThree_pdgId");
+  // TTreeReaderArray<Int_t> GenP6StatusThree_motherId(reader,"GenP6StatusThree_motherId");
+
+  // cout << "CHECK 3" << endl;
+
 
   // TH1
   TH1D* hmT = new TH1D("hmT","",nMtBins, mtMin, mtMax);
   TH1D* hmT2over4 = new TH1D("hmT2over4","",nMt2over4Bins, mt2over4Min, mt2over4Max);
   TH1D* hpfmet = new TH1D("hpfmet","",60,0,300);
   TH1D* htkmet = new TH1D("htkmet","",60,0,300);
-  TH1D* hlep1pt = new TH1D("hlep1pt","",28,24,80);  //60, 0, 300
+  TH1D* hlep1pt = new TH1D("hlep1pt","",56,24,80);  //60, 0, 300
   TH1D* hlep1pt2 = new TH1D("hlep1pt2","",125,500,3000);
   TH1D* hlep1eta = new TH1D("hlep1eta","",48,-2.4,2.4);  //60, 0, 300
   TH1D* hlep2pt = new TH1D("hlep2pt","",40,0,80);
@@ -228,30 +278,86 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH1D* hdxy = new TH1D("hdxy","",40,0,0.1);
   TH1D* hdphiLepMet = new TH1D("hdphiLepMet","",32,0,3.2);
 
+  // histograms binned in eta
+  vector<Double_t> etaBinEdges_double;
+  vector<string> etaBinEdges_str;
+  if (isMuon) {
+    for (UInt_t i = 0; i < muEtaBinEdges_double.size(); i++) {
+      etaBinEdges_str.push_back( getStringFromDouble(muEtaBinEdges_double[i]) );
+      etaBinEdges_double.push_back(muEtaBinEdges_double[i]);
+    }
+  } else {
+    for (UInt_t i = 0; i < eleEtaBinEdges_double.size(); i++) {
+      etaBinEdges_str.push_back( getStringFromDouble(eleEtaBinEdges_double[i]) );
+      etaBinEdges_double.push_back(eleEtaBinEdges_double[i]);
+    }
+  }
+
+  //cout << "CHECK 4" << endl;
+
+  vector<TH1D*> hmT_lepEtaBin;
+  vector<TH1D*> hlep1pt_lepEtaBin;
+  vector<TH1D*> hmT_lepEtaBin_plus;
+  vector<TH1D*> hlep1pt_lepEtaBin_plus;
+  vector<TH1D*> hmT_lepEtaBin_minus;
+  vector<TH1D*> hlep1pt_lepEtaBin_minus;
+  for (UInt_t ibin = 0; ibin < etaBinEdges_str.size() -1; ibin++) {
+    hmT_lepEtaBin.push_back(new TH1D(Form("hmT_etaBin%sTo%s",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"",nMtBins, mtMin, mtMax));
+    hlep1pt_lepEtaBin.push_back(new TH1D(Form("hlep1pt_etaBin%sTo%s",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"", 56,24,80));
+    hmT_lepEtaBin_plus.push_back(new TH1D(Form("hmT_etaBin%sTo%s_plus",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"",nMtBins, mtMin, mtMax));
+    hlep1pt_lepEtaBin_plus.push_back(new TH1D(Form("hlep1pt_etaBin%sTo%s_plus",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"", 56,24,80));
+    hmT_lepEtaBin_minus.push_back(new TH1D(Form("hmT_etaBin%sTo%s_minus",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"",nMtBins, mtMin, mtMax));
+    hlep1pt_lepEtaBin_minus.push_back(new TH1D(Form("hlep1pt_etaBin%sTo%s_minus",etaBinEdges_str[ibin].c_str(),etaBinEdges_str[ibin+1].c_str()),"", 56,24,80));
+  }
+  ///////////////////////////
+
+  // histograms with mass weights
+  vector<TH1D*> hmT_mw;
+  vector<TH1D*> hlep1pt_mw;
+  if (sampleDir.find("data") == string::npos) {
+    //////////////////////////////////////////////////////
+    // must read the tree at least once to get nWMassSteps
+    //////////////////////////////////////////////////////
+    TTreeReader reader_tmp (chain);
+    TTreeReaderValue<Int_t> nWMassSteps_tmp(reader_tmp, "nWMassSteps"); // number of weights, not used, value chosen by user and put in nMassWeights
+    long int nEvents_tmp = 0;
+    while(reader_tmp.Next() && nEvents_tmp == 0){
+      nMassWeights = *nWMassSteps_tmp;
+      nEvents_tmp++;
+    }
+    for (Int_t im = 0; im < nMassWeights; im++) {
+      hmT_mw.push_back(new TH1D(Form("hmT_mw_%d",im),"",nMtBins, mtMin, mtMax));
+      hlep1pt_mw.push_back(new TH1D(Form("hlep1pt_mw_%d",im),"",56,24,80));
+    }
+  }
+  
+  // cout << "CHECK 5" << endl;
+
+
   // TH2
-  TH2D* h2_mT_lep1pt = new TH2D("h2_mT_lep1pt","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta = new TH2D("h2_mT_lep1eta","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
+  TH2D* h2_mT_lep1pt = new TH2D("h2_mT_lep1pt","",nMtBins, mtMin, mtMax, 56,24,80);
+  TH2D* h2_mT_lep1eta = new TH2D("h2_mT_lep1eta","",nMtBins, mtMin, mtMax, 48, -2.4, 2.4);
   TH2D* h2_mT_pfmet = new TH2D("h2_mT_pfmet","",nMtBins, mtMin, mtMax, 60,0,300);
   TH2D* h2_mT_tkmet = new TH2D("h2_mT_tkmet","",nMtBins, mtMin, mtMax, 60,0,300);
   TH2D* h2_mT_bosonPt = new TH2D("h2_mT_bosonPt","",nMtBins, mtMin, mtMax, 30,0,30);
   TH2D* h2_mT_lep1relIso03 = new TH2D("h2_mT_lep1relIso03","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
   TH2D* h2_mT_lep1relIso04 = new TH2D("h2_mT_lep1relIso04","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH2D* h2_lep1pt_lep1eta = new TH2D("h2_lep1pt_lep1eta","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_pfmet = new TH2D("h2_lep1pt_pfmet","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet = new TH2D("h2_lep1pt_tkmet","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt = new TH2D("h2_lep1pt_bosonPt","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03 = new TH2D("h2_lep1pt_lep1relIso03","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04 = new TH2D("h2_lep1pt_lep1relIso04","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  TH2D* h2_lep1pt_lep1eta = new TH2D("h2_lep1pt_lep1eta","",56,24,80, 48, -2.4, 2.4);
+  TH2D* h2_lep1pt_pfmet = new TH2D("h2_lep1pt_pfmet","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_tkmet = new TH2D("h2_lep1pt_tkmet","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_bosonPt = new TH2D("h2_lep1pt_bosonPt","",56,24,80, 30,0,30);
+  TH2D* h2_lep1pt_lep1relIso03 = new TH2D("h2_lep1pt_lep1relIso03","",56,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  TH2D* h2_lep1pt_lep1relIso04 = new TH2D("h2_lep1pt_lep1relIso04","",56,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
   TH2D* h2_pfmet_tkmet = new TH2D("h2_pfmet_tkmet","",60,0,300, 60,0,300);
 
-  TH1D* hlep1relIso03_noIsoCut = new TH1D("hlep1relIso03_noIsoCut","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso03_noIsoCut = new TH2D("h2_mT_lep1relIso03_noIsoCut","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut","",28,24,80, 100,0.0,0.5);
+  TH1D* hlep1relIso03_noIsoCut = new TH1D("hlep1relIso03_noIsoCut","", 100,0.0,0.5);
+  TH2D* h2_mT_lep1relIso03_noIsoCut = new TH2D("h2_mT_lep1relIso03_noIsoCut","",nMtBins, mtMin, mtMax, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso03_noIsoCut = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut","",56,24,80, 100,0.0,0.5);
   TH1D* hlep1relIso04_noIsoCut = new TH1D("hlep1relIso04_noIsoCut","",100,0.0,0.5);
   TH2D* h2_mT_lep1relIso04_noIsoCut = new TH2D("h2_mT_lep1relIso04_noIsoCut","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut","",28,24,80, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso04_noIsoCut = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut","",56,24,80, 100,0.0,0.5);
 
   ////////////////////////////////
   // electron specific histograms
@@ -262,10 +368,21 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH2D* h2_mT_lep1r9 = NULL;
   TH2D* h2_lep1pt_lep1sigIetaIeta = NULL;
   TH2D* h2_lep1pt_lep1r9 = NULL;
+  TH2D* h2_mT_detaIn = NULL;
+  TH2D* h2_mT_dphiIn = NULL;
+  TH2D* h2_lep1pt_detaIn = NULL;
+  TH2D* h2_lep1pt_dphiIn = NULL;
   TH1D* hdetaIn = NULL;
   TH1D* hdphiIn = NULL;
-  // TH1D* hdetaIn_noCut = NULL;
-  // TH1D* hdphiIn_noCut = NULL;
+  TH1D* hdetaIn_noCut = NULL;
+  TH1D* hdphiIn_noCut = NULL;
+  TH1D* hdetaIn_noCutDphiDeta = NULL;
+  TH1D* hdphiIn_noCutDphiDeta = NULL;
+  TH1D* hpfmet_noCutDphiDeta = NULL;
+  TH1D* hmT_noCutDphiDeta = NULL;
+  TH1D* hlep1pt_noCutDphiDeta = NULL;
+  TH1D* hmT_noCutIsoDphiDeta = NULL;
+  TH1D* hlep1pt_noCutIsoDphiDeta = NULL;
   // TH1D* hdxy_noCut = NULL;
   // TH2D* h2_mT_detaIn_noCut = NULL;
   // TH2D* h2_mT_dphiIn_noCut = NULL;
@@ -278,19 +395,30 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     hlep1r9 = new TH1D("hlep1r9","", 55, 0.0, 1.1);
     h2_mT_lep1sigIetaIeta = new TH2D("h2_mT_lep1sigIetaIeta","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
     h2_mT_lep1r9 = new TH2D("h2_mT_lep1r9","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
-    h2_lep1pt_lep1sigIetaIeta = new TH2D("h2_lep1pt_lep1sigIetaIeta","",28,24,80, 25, 0.0, 0.025);
-    h2_lep1pt_lep1r9 = new TH2D("h2_lep1pt_lep1r9","",28,24,80, 55, 0.0, 1.1);
-    hdetaIn = new TH1D("hdetaIn","",300,0.0,0.300);
+    h2_lep1pt_lep1sigIetaIeta = new TH2D("h2_lep1pt_lep1sigIetaIeta","",56,24,80, 25, 0.0, 0.025);
+    h2_lep1pt_lep1r9 = new TH2D("h2_lep1pt_lep1r9","",56,24,80, 55, 0.0, 1.1);
+    h2_mT_detaIn = new TH2D("h2_mT_detaIn","",nMtBins, mtMin, mtMax, 30,0.0,0.030);
+    h2_mT_dphiIn = new TH2D("h2_mT_dphiIn","",nMtBins, mtMin, mtMax, 60,0.0,0.30);
+    h2_lep1pt_detaIn = new TH2D("h2_lep1pt_detaIn","",56,24,80, 30,0.0,0.030);
+    h2_lep1pt_dphiIn = new TH2D("h2_lep1pt_dphiIn","",56,24,80, 60,0.0,0.30);
+    hdetaIn = new TH1D("hdetaIn","",30,0.0,0.030);
     hdphiIn = new TH1D("hdphiIn","",60,0.0,0.30);
-    // hdetaIn_noCut = new TH1D("hdetaIn_noCut","",300,0.0,0.300);
-    // hdphiIn_noCut = new TH1D("hdphiIn_noCut","",60,0.0,0.30);
+    hdetaIn_noCut = new TH1D("hdetaIn_noCut","",30,0.0,0.030);
+    hdphiIn_noCut = new TH1D("hdphiIn_noCut","",60,0.0,0.30);
+    hdetaIn_noCutDphiDeta = new TH1D("hdetaIn_noCutDphiDeta","",30,0.0,0.030);
+    hdphiIn_noCutDphiDeta = new TH1D("hdphiIn_noCutDphiDeta","",60,0.0,0.30);
+    hpfmet_noCutDphiDeta = new TH1D("hpfmet_noCutDphiDeta","",60,0,300);
+    hmT_noCutDphiDeta = new TH1D("hmT_noCutDphiDeta","",nMtBins, mtMin, mtMax);
+    hlep1pt_noCutDphiDeta = new TH1D("hlep1pt_noCutDphiDeta","",56,24,80);
+    hmT_noCutIsoDphiDeta = new TH1D("hmT_noCutIsoDphiDeta","",nMtBins, mtMin, mtMax);
+    hlep1pt_noCutIsoDphiDeta = new TH1D("hlep1pt_noCutIsoDphiDeta","",56,24,80);
     // hdxy_noCut = new TH1D("hdxy_noCut","",20,0.0,0.05);
-    // h2_mT_detaIn_noCut = new TH2D("h2_mT_detaIn_noCut","",nMtBins, mtMin, mtMax, 300,0.0,0.300);
+    // h2_mT_detaIn_noCut = new TH2D("h2_mT_detaIn_noCut","",nMtBins, mtMin, mtMax, 30,0.0,0.03);
     // h2_mT_dphiIn_noCut = new TH2D("h2_mT_dphiIn_noCut","",nMtBins, mtMin, mtMax, 60,0.0,0.30);
     // h2_mT_dxy_noCut = new TH2D("h2_mT_dxy_noCut","",nMtBins, mtMin, mtMax, 20,0.0,0.05);
-    // h2_lep1pt_detaIn_noCut = new TH2D("h2_lep1pt_detaIn_noCut","",28,24,80, 300,0.0,0.300);
-    // h2_lep1pt_dphiIn_noCut = new TH2D("h2_lep1pt_dphiIn_noCut","",28,24,80, 60,0.0,0.30);
-    // h2_lep1pt_dxy_noCut = new TH2D("h2_lep1pt_dxy_noCut","",28,24,80, 20,0.0,0.05);
+    // h2_lep1pt_detaIn_noCut = new TH2D("h2_lep1pt_detaIn_noCut","",56,24,80, 30,0.0,0.030);
+    // h2_lep1pt_dphiIn_noCut = new TH2D("h2_lep1pt_dphiIn_noCut","",56,24,80, 60,0.0,0.30);
+    // h2_lep1pt_dxy_noCut = new TH2D("h2_lep1pt_dxy_noCut","",56,24,80, 20,0.0,0.05);
   }
   ///////////////////////////////////
 
@@ -300,7 +428,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH1D* hmT2over4_plus = new TH1D("hmT2over4_plus","",nMt2over4Bins, mt2over4Min, mt2over4Max);
   TH1D* hpfmet_plus = new TH1D("hpfmet_plus","",60,0,300);
   TH1D* htkmet_plus = new TH1D("htkmet_plus","",60,0,300);
-  TH1D* hlep1pt_plus = new TH1D("hlep1pt_plus","",28,24,80);  //60, 0, 300
+  TH1D* hlep1pt_plus = new TH1D("hlep1pt_plus","",56,24,80);  //60, 0, 300
   TH1D* hlep1pt2_plus = new TH1D("hlep1pt2_plus","",125,500,3000);
   TH1D* hlep1eta_plus = new TH1D("hlep1eta_plus","",48,-2.4,2.4);  //60, 0, 300
   TH1D* hlep2pt_plus = new TH1D("hlep2pt_plus","",35,10,80);
@@ -314,8 +442,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH1D* hdxy_plus = new TH1D("hdxy_plus","",20,0,0.1);
   TH1D* hdphiLepMet_plus = new TH1D("hdphiLepMet_plus","",32,0,3.2);
 
-  TH2D* h2_mT_lep1pt_plus = new TH2D("h2_mT_lep1pt_plus","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta_plus = new TH2D("h2_mT_lep1eta_plus","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
+  TH2D* h2_mT_lep1pt_plus = new TH2D("h2_mT_lep1pt_plus","",nMtBins, mtMin, mtMax, 56,24,80);
+  TH2D* h2_mT_lep1eta_plus = new TH2D("h2_mT_lep1eta_plus","",nMtBins, mtMin, mtMax, 48, -2.4, 2.4);
   TH2D* h2_mT_lep1sigIetaIeta_plus = new TH2D("h2_mT_lep1sigIetaIeta_plus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
   TH2D* h2_mT_lep1r9_plus = new TH2D("h2_mT_lep1r9_plus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
   TH2D* h2_mT_pfmet_plus = new TH2D("h2_mT_pfmet_plus","",nMtBins, mtMin, mtMax, 60,0,300);
@@ -324,21 +452,21 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH2D* h2_mT_lep1relIso03_plus = new TH2D("h2_mT_lep1relIso03_plus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
   TH2D* h2_mT_lep1relIso04_plus = new TH2D("h2_mT_lep1relIso04_plus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH2D* h2_lep1pt_lep1eta_plus = new TH2D("h2_lep1pt_lep1eta_plus","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_lep1sigIetaIeta_plus = new TH2D("h2_lep1pt_lep1sigIetaIeta_plus","",28,24,80, 25, 0.0, 0.025);
-  TH2D* h2_lep1pt_lep1r9_plus = new TH2D("h2_lep1pt_lep1r9_plus","",28,24,80, 55, 0.0, 1.1);
-  TH2D* h2_lep1pt_pfmet_plus = new TH2D("h2_lep1pt_pfmet_plus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet_plus = new TH2D("h2_lep1pt_tkmet_plus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt_plus = new TH2D("h2_lep1pt_bosonPt_plus","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03_plus = new TH2D("h2_lep1pt_lep1relIso03_plus","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04_plus = new TH2D("h2_lep1pt_lep1relIso04_plus","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  TH2D* h2_lep1pt_lep1eta_plus = new TH2D("h2_lep1pt_lep1eta_plus","",56,24,80, 48, -2.4, 2.4);
+  TH2D* h2_lep1pt_lep1sigIetaIeta_plus = new TH2D("h2_lep1pt_lep1sigIetaIeta_plus","",56,24,80, 25, 0.0, 0.025);
+  TH2D* h2_lep1pt_lep1r9_plus = new TH2D("h2_lep1pt_lep1r9_plus","",56,24,80, 55, 0.0, 1.1);
+  TH2D* h2_lep1pt_pfmet_plus = new TH2D("h2_lep1pt_pfmet_plus","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_tkmet_plus = new TH2D("h2_lep1pt_tkmet_plus","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_bosonPt_plus = new TH2D("h2_lep1pt_bosonPt_plus","",56,24,80, 30,0,30);
+  TH2D* h2_lep1pt_lep1relIso03_plus = new TH2D("h2_lep1pt_lep1relIso03_plus","",56,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  TH2D* h2_lep1pt_lep1relIso04_plus = new TH2D("h2_lep1pt_lep1relIso04_plus","",56,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
   TH1D* hlep1relIso03_noIsoCut_plus = new TH1D("hlep1relIso03_noIsoCut_plus","",100,0.0,0.5);
   TH2D* h2_mT_lep1relIso03_noIsoCut_plus = new TH2D("h2_mT_lep1relIso03_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_plus","",28,24,80, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_plus","",56,24,80, 100,0.0,0.5);
   TH1D* hlep1relIso04_noIsoCut_plus = new TH1D("hlep1relIso04_noIsoCut_plus","",100,0.0,0.5);
   TH2D* h2_mT_lep1relIso04_noIsoCut_plus = new TH2D("h2_mT_lep1relIso04_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_plus","",28,24,80, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_plus","",56,24,80, 100,0.0,0.5);
 
   ///////////////////////////////
   // negative lepton
@@ -346,7 +474,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH1D* hmT2over4_minus = new TH1D("hmT2over4_minus","",nMt2over4Bins, mt2over4Min, mt2over4Max);
   TH1D* hpfmet_minus = new TH1D("hpfmet_minus","",60,0,300);
   TH1D* htkmet_minus = new TH1D("htkmet_minus","",60,0,300);
-  TH1D* hlep1pt_minus = new TH1D("hlep1pt_minus","",28,24,80);  //60, 0, 300
+  TH1D* hlep1pt_minus = new TH1D("hlep1pt_minus","",56,24,80);  //60, 0, 300
   TH1D* hlep1pt2_minus = new TH1D("hlep1pt2_minus","",125,500,3000);
   TH1D* hlep1eta_minus = new TH1D("hlep1eta_minus","",48,-2.4,2.4);  //60, 0, 300
   TH1D* hlep2pt_minus = new TH1D("hlep2pt_minus","",35,10,80);
@@ -360,8 +488,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH1D* hdxy_minus = new TH1D("hdxy_minus","",20,0,0.1);
   TH1D* hdphiLepMet_minus = new TH1D("hdphiLepMet_minus","",32,0,3.2);
 
-  TH2D* h2_mT_lep1pt_minus = new TH2D("h2_mT_lep1pt_minus","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta_minus = new TH2D("h2_mT_lep1eta_minus","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
+  TH2D* h2_mT_lep1pt_minus = new TH2D("h2_mT_lep1pt_minus","",nMtBins, mtMin, mtMax, 56,24,80);
+  TH2D* h2_mT_lep1eta_minus = new TH2D("h2_mT_lep1eta_minus","",nMtBins, mtMin, mtMax, 48, -2.4, 2.4);
   TH2D* h2_mT_lep1sigIetaIeta_minus = new TH2D("h2_mT_lep1sigIetaIeta_minus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
   TH2D* h2_mT_lep1r9_minus = new TH2D("h2_mT_lep1r9_minus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
   TH2D* h2_mT_pfmet_minus = new TH2D("h2_mT_pfmet_minus","",nMtBins, mtMin, mtMax, 60,0,300);
@@ -370,21 +498,21 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TH2D* h2_mT_lep1relIso03_minus = new TH2D("h2_mT_lep1relIso03_minus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
   TH2D* h2_mT_lep1relIso04_minus = new TH2D("h2_mT_lep1relIso04_minus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH2D* h2_lep1pt_lep1eta_minus = new TH2D("h2_lep1pt_lep1eta_minus","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_lep1sigIetaIeta_minus = new TH2D("h2_lep1pt_lep1sigIetaIeta_minus","",28,24,80, 25, 0.0, 0.025);
-  TH2D* h2_lep1pt_lep1r9_minus = new TH2D("h2_lep1pt_lep1r9_minus","",28,24,80, 55, 0.0, 1.1);
-  TH2D* h2_lep1pt_pfmet_minus = new TH2D("h2_lep1pt_pfmet_minus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet_minus = new TH2D("h2_lep1pt_tkmet_minus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt_minus = new TH2D("h2_lep1pt_bosonPt_minus","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03_minus = new TH2D("h2_lep1pt_lep1relIso03_minus","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04_minus = new TH2D("h2_lep1pt_lep1relIso04_minus","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  TH2D* h2_lep1pt_lep1eta_minus = new TH2D("h2_lep1pt_lep1eta_minus","",56,24,80, 48, -2.4, 2.4);
+  TH2D* h2_lep1pt_lep1sigIetaIeta_minus = new TH2D("h2_lep1pt_lep1sigIetaIeta_minus","",56,24,80, 25, 0.0, 0.025);
+  TH2D* h2_lep1pt_lep1r9_minus = new TH2D("h2_lep1pt_lep1r9_minus","",56,24,80, 55, 0.0, 1.1);
+  TH2D* h2_lep1pt_pfmet_minus = new TH2D("h2_lep1pt_pfmet_minus","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_tkmet_minus = new TH2D("h2_lep1pt_tkmet_minus","",56,24,80, 60,0,300);
+  TH2D* h2_lep1pt_bosonPt_minus = new TH2D("h2_lep1pt_bosonPt_minus","",56,24,80, 30,0,30);
+  TH2D* h2_lep1pt_lep1relIso03_minus = new TH2D("h2_lep1pt_lep1relIso03_minus","",56,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  TH2D* h2_lep1pt_lep1relIso04_minus = new TH2D("h2_lep1pt_lep1relIso04_minus","",56,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
   TH1D* hlep1relIso03_noIsoCut_minus = new TH1D("hlep1relIso03_noIsoCut_minus","",100,0.0,0.5);
   TH2D* h2_mT_lep1relIso03_noIsoCut_minus = new TH2D("h2_mT_lep1relIso03_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_minus","",28,24,80, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_minus","",56,24,80, 100,0.0,0.5);
   TH1D* hlep1relIso04_noIsoCut_minus = new TH1D("hlep1relIso04_noIsoCut_minus","",100,0.0,0.5);
   TH2D* h2_mT_lep1relIso04_noIsoCut_minus = new TH2D("h2_mT_lep1relIso04_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_minus","",28,24,80, 100,0.0,0.5);
+  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_minus","",56,24,80, 100,0.0,0.5);
 
   ////////////////////
   ////////////////////
@@ -421,6 +549,9 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   ////////////////////
   ////////////////////
 
+  // cout << "CHECK 6" << endl;
+
+
   // start event loop                                                                                                                     
                     
   long int nTotal = chain->GetEntries();
@@ -430,8 +561,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   Bool_t positiveLeptonHasPassedSelection = false;
 
   // flags for electrons to save whether some selection is passed and allow to fill some histograms before only one of these selection is applied
-  // Bool_t passDphiSel = false;
-  // Bool_t passDetaSel = false;
+  Bool_t passDphiSel = false;
+  Bool_t passDetaSel = false;
   // Bool_t passDxySel = false;
   Bool_t passIsoSel = false;
 
@@ -441,11 +572,16 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   Double_t lep1pt = 0.0;
   Double_t lep1pt2 = 0.0;
   Double_t dphiLepMet = -999.0;
+  Double_t absLep1DetaIn = -1.0;
+  Double_t absLep1DphiIn = -1.0;
   ////////////////////////////////////////////
   // to get correct weight depending on sample in chain
   string currentFile = "";
   Int_t ifile = 0;
   ////////////////////
+
+  // cout << "CHECK 7" << endl;
+
 
   while(reader.Next()){
   
@@ -455,7 +591,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     nEvents++;
 
     // to debug
-    // if (nEvents == 100) break;
+    // if (WJetsGenDaughterPdgId == 0) break;
+    // if (nEvents == 30) break;
 
     if(dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName() != currentFile and currentFile != ""){ 
       currentFile = dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName();                   
@@ -466,8 +603,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
     negativeLeptonHasPassedSelection = false;
     positiveLeptonHasPassedSelection = false;
-    // passDphiSel = false;
-    // passDetaSel = false;
+    passDphiSel = false;
+    passDetaSel = false;
     // passDxySel = false;
     passIsoSel = false;
   
@@ -476,24 +613,36 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     if (*nlep < 1) continue;    // at least 1 lepton, but use leading on to cut                                                   
     if (fabs(lep_pdgId[0]) != chargedLeptonFlavour) continue;  // electrons                                                     
     if (lep_pt[0] < 30.0) continue;
-    if (fabs(lep_eta[0]) > lepEtaThreshold) continue; 
+    if (fabs(lep_eta[0]) < lepEtaMinThreshold || fabs(lep_eta[0]) > lepEtaMaxThreshold) continue; 
     //if (lep_trgMatch[0] < 0.5) continue;  // avoid using it for now, it could be ill-defined
 
+    // apply gen cut to wjets to separate the 3 leptonic decay channels
+    if (WJetsGenDaughterPdgId > 0) {
+      Bool_t genLepNotFound = true;
+      for (Int_t igen = 0; genLepNotFound && igen < **nGenP6StatusThree; igen++) {      
+	if (fabs((*GenP6StatusThree_pdgId)[igen]) == WJetsGenDaughterPdgId && fabs((*GenP6StatusThree_motherId)[igen]) == 24) genLepNotFound = false;
+	//if (not genLepNotFound) cout << "GenP6StatusThree_pdgId " << (*GenP6StatusThree_pdgId)[igen] << endl;
+      }
+      if (genLepNotFound) continue;
+    }
+
     // remove Z candidate when nlep > 1
-    Bool_t isCandidateZJetsEvent = false;
-    if (*nlep > 1) {
-      for (Int_t ilep = 1; ilep < *nlep && !isCandidateZJetsEvent; ilep++) {
-	if ((lep_pdgId[0] + lep_pdgId[ilep]) == 0) {
-	  TLorentzVector lep1, zboson;
-	  lep1.SetPtEtaPhiM(lep_pt[0],lep_eta[0],lep_phi[0], lep_mass[0]) ;
-	  zboson.SetPtEtaPhiM(lep_pt[ilep],lep_eta[ilep],lep_phi[ilep], lep_mass[ilep]);
-	  zboson += lep1;
-	  Double_t zmass = zboson.M();
-	  if (zmass > 80.0 && zmass < 100.0) isCandidateZJetsEvent = true;
+    if (removeZtaggedEvents) {
+      Bool_t isCandidateZJetsEvent = false;
+      if (*nlep > 1) {
+	for (Int_t ilep = 1; ilep < *nlep && !isCandidateZJetsEvent; ilep++) {
+	  if ((lep_pdgId[0] + lep_pdgId[ilep]) == 0) {
+	    TLorentzVector lep1, zboson;
+	    lep1.SetPtEtaPhiM(lep_pt[0],lep_eta[0],lep_phi[0], lep_mass[0]) ;
+	    zboson.SetPtEtaPhiM(lep_pt[ilep],lep_eta[ilep],lep_phi[ilep], lep_mass[ilep]);
+	    zboson += lep1;
+	    Double_t zmass = zboson.M();
+	    if (zmass > 80.0 && zmass < 100.0) isCandidateZJetsEvent = true;
+	  }
 	}
       }
+      if (isCandidateZJetsEvent) continue;
     }
-    if (isCandidateZJetsEvent) continue;
 
     // tight ID
     // for electron don't cut now on quantities to be inverted to select QCD
@@ -507,8 +656,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       if (*HLT_SingleEl == 0) continue;
 
-      // if (fabs(lep_etaSc[0]) < 1.479) eleID = &tightEleID_EB_8TeV;
-      // else                            eleID = &tightEleID_EE_8TeV;
+      if (fabs(lep_etaSc[0]) < 1.479) eleCut = &eleCut_EB;
+      else                            eleCut = &eleCut_EE;
       // if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
       // if (lep_HoE[0] > eleID->HoE) continue;
       // if (lep_dz[0] > eleID->dz) continue;
@@ -525,19 +674,24 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       // if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
 
       // implementing electron triggering ID
-      if (lep_eleMVAPreselId[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
+      // lep_eleMVAPreselId not in electron samples skimmed as QCD CR, in this case don't use the variable to cut
+      if (not useEleSkimmedSample && (*lep_eleMVAPreselId)[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
       if (lep_eleMVAId[0] < 2) continue;      
       if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
       // relative isolation cut applied afterwards, to allow for inversion depending on the region
 
+      absLep1DetaIn = fabs(lep_detaIn[0]);
+      absLep1DphiIn = fabs(lep_dphiIn[0]);
 
     }
+
+    //cout << "Check" << endl;
 
     if (lep_pdgId[0] > 0) negativeLeptonHasPassedSelection = true;
     else                  positiveLeptonHasPassedSelection = true;
 
     if (*isData == 1) wgt = 1.0;
-    else wgt = intLumi * genwgtVec[ifile] * *puw * *lepEfficiency; 
+    else wgt = intLumi * genwgtVec[ifile] * **puw * **lepEfficiency; 
 
     TLorentzVector lep1Reco;
     TVector2 lep1Reco2D, tkmet2D, pfmet2D, metReco, recoilPfmet, recoilTkmet, recoilReco, bosonReco;
@@ -601,7 +755,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     mT2over4 = mT*mT/4.0;
     lep1pt2 = lep1pt * lep1pt; 
 
-    dphiLepMet = metReco.DeltaPhi(lep1Reco2D);
+    dphiLepMet = fabs(metReco.DeltaPhi(lep1Reco2D));
     //////////////////////////////////////////////
     // apply some selections but do not use continue. Just fill some bool to keep track of passed selections
     ////////////////////////////////////////////
@@ -609,14 +763,14 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       if (QCD_enriched_region) {
 
-	if (pfmet2D.Mod() > PFMET_CR) continue;
+	if (PFMET_MU_CR > 0.0 && pfmet2D.Mod() > PFMET_MU_CR) continue;
 	if (lep_dxy[0] < QCD_INVERTED_DXY_THR) continue; // apply dxy cut to select QCD in muon region
 	if (lep_relIso04[0] > muIso04thr_QCD) passIsoSel = true; 
 
       } else {
 
 	if (lep_relIso04[0] < muIso04thr) passIsoSel = true; 
-	if (pfmet2D.Mod() < PFMET_SR) continue;
+	if (pfmet2D.Mod() < PFMET_MU_SR) continue;
 
       }
       
@@ -624,31 +778,65 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       if (QCD_enriched_region) {
 
+	if (PFMET_ELE_CR > 0.0 && pfmet2D.Mod() > PFMET_ELE_CR) continue;
 	if (lep_relIso04[0] > eleIso04thr_QCD) passIsoSel = true;
-
-      	// if (lep_detaIn[0] > eleID->dEtaIn) passDetaSel = true;
-      	// if (lep_dphiIn[0] > eleID->dPhiIn) passDphiSel = true;
+	//passIsoSel = true; // no cut on Iso for electrons
+	if (absLep1DetaIn > eleCut->deta) passDetaSel = true;
+      	if (absLep1DphiIn > eleCut->dphi) passDphiSel = true;
+      	// if (absLep1DetaIn > eleID->dEtaIn) passDetaSel = true;
+      	// if (absLep1DphiIn > eleID->dPhiIn) passDphiSel = true;
       	// if (lep_dxy[0] > eleID->dxy) passDxySel = true;
       	// if (lep_relIso03[0] > leptonIso03threshold) passIsoSel = true;  
 
       } else {
 
-	//if (lep_relIso04[0] < eleTrigMVAID->relPFiso) passIsoSel = true;	
-	if (lep_relIso04[0] < 0.15) passIsoSel = true;
+	if (pfmet2D.Mod() < PFMET_ELE_SR) continue;
+	if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
+	//passIsoSel = true; // no cut on Iso for electrons
+   	if (absLep1DetaIn < eleCut->deta) passDetaSel = true;
+      	if (absLep1DphiIn < eleCut->dphi) passDphiSel = true;
+   
 
-      	// if (lep_detaIn[0] < eleID->dEtaIn) passDetaSel = true;
-      	// if (lep_dphiIn[0] < eleID->dPhiIn) passDphiSel = true;
+      	// if (absLep1DetaIn < eleID->dEtaIn) passDetaSel = true;
+      	// if (absLep1DphiIn < eleID->dPhiIn) passDphiSel = true;
       	// if (lep_dxy[0] < eleID->dxy) passDxySel = true;
       	// if (lep_relIso03[0] < leptonIso03threshold) passIsoSel = true;  
+	// if (lep_relIso04[0] < eleTrigMVAID->relPFiso) passIsoSel = true;	
+
       }
+
+      fillTH1(hmT_noCutIsoDphiDeta, mT, wgt);      
+      fillTH1(hlep1pt_noCutIsoDphiDeta, lep1pt, wgt);
+
+      // for electrons fill histogram of Dphi and Deta before the respective cut, but with all the others applied
+      if (passIsoSel) {
+
+	fillTH1(hdetaIn_noCutDphiDeta, absLep1DetaIn, wgt);      
+	fillTH1(hdphiIn_noCutDphiDeta, absLep1DphiIn, wgt);
+	fillTH1(hpfmet_noCutDphiDeta, pfmet2D.Mod(), wgt);
+	fillTH1(hmT_noCutDphiDeta, mT, wgt);
+	fillTH1(hlep1pt_noCutDphiDeta, lep1pt, wgt);
+	
+	if (passDetaSel) {
+	  fillTH1(hdphiIn_noCut, absLep1DphiIn, wgt);
+	}      
+	if (passDphiSel) {
+	  fillTH1(hdetaIn_noCut, absLep1DetaIn, wgt);
+	}
+
+      }
+
+      if (not passDphiSel) continue;
+      if (not passDetaSel) continue;
+
 
     }
     ////////////////////////////////
 
+
     /////////////////////////////////////
     // iso histo before iso cut
     ////////////////////////////////////////////
-
     // fill histograms for isolation before cutting on it
     fillTH1(hlep1relIso03_noIsoCut, lep_relIso03[0], wgt);
     fillTH2(h2_mT_lep1relIso03_noIsoCut, mT, lep_relIso03[0], wgt);
@@ -683,14 +871,14 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     // if ((not isMuon) && passIsoSel) {
 
     //   if (passDphiSel && passDxySel) {
-    // 	fillTH1(hdetaIn_noCut, lep_detaIn[0], wgt);
-    // 	fillTH2(h2_mT_detaIn_noCut, mT, lep_detaIn[0], wgt);
-    // 	fillTH2(h2_lep1pt_detaIn_noCut, lep1pt, lep_detaIn[0], wgt);
+    // 	fillTH1(hdetaIn_noCut, absLep1DetaIn, wgt);
+    // 	fillTH2(h2_mT_detaIn_noCut, mT, absLep1DetaIn, wgt);
+    // 	fillTH2(h2_lep1pt_detaIn_noCut, lep1pt, absLep1DetaIn, wgt);
     //   }
     //   if (passDetaSel && passDxySel) {
-    // 	fillTH1(hdphiIn_noCut, lep_dphiIn[0], wgt);
-    // 	fillTH2(h2_mT_dphiIn_noCut, mT, lep_dphiIn[0], wgt);
-    // 	fillTH2(h2_lep1pt_dphiIn_noCut, lep1pt, lep_dphiIn[0], wgt);
+    // 	fillTH1(hdphiIn_noCut, absLep1DphiIn, wgt);
+    // 	fillTH2(h2_mT_dphiIn_noCut, mT, absLep1DphiIn, wgt);
+    // 	fillTH2(h2_lep1pt_dphiIn_noCut, lep1pt, absLep1DphiIn, wgt);
     //   }
     //   if (passDetaSel && passDphiSel) {
     // 	fillTH1(hdxy_noCut, lep_dxy[0], wgt);
@@ -733,6 +921,29 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     fillTH1(hdxy,lep_dxy[0], wgt);
     fillTH1(hdphiLepMet, dphiLepMet, wgt);
 
+    Bool_t etaBinFound = false;
+    for (UInt_t etaBinEdge = 1; etaBinEdge < etaBinEdges_double.size() && not etaBinFound; etaBinEdge++) {
+      if (fabs(lep1Reco.Eta()) < etaBinEdges_double[etaBinEdge]) {
+	fillTH1(hmT_lepEtaBin[etaBinEdge-1],(Double_t) mT, wgt);
+	fillTH1(hlep1pt_lepEtaBin[etaBinEdge-1],(Double_t) lep1pt, wgt);
+	if (positiveLeptonHasPassedSelection) {
+	  fillTH1(hmT_lepEtaBin_plus[etaBinEdge-1],(Double_t) mT, wgt);
+	  fillTH1(hlep1pt_lepEtaBin_plus[etaBinEdge-1],(Double_t) lep1pt, wgt);
+	} else if (negativeLeptonHasPassedSelection) {
+	  fillTH1(hmT_lepEtaBin_minus[etaBinEdge-1],(Double_t) mT, wgt);
+	  fillTH1(hlep1pt_lepEtaBin_minus[etaBinEdge-1],(Double_t) lep1pt, wgt);
+	}
+	etaBinFound = true;
+      }
+    }
+
+    if (WJetsGenDaughterPdgId > 0) {
+      for (Int_t im = 0; im < nMassWeights; im++) {
+	fillTH1(hmT_mw[im], (Double_t) mT, wgt* (*mwWeight)[im]);
+	fillTH1(hlep1pt_mw[im], lep1pt, wgt* (*mwWeight)[im]);
+      }
+    }      
+
     fillTH2(h2_mT_lep1pt, mT, lep_pt[0], wgt);
     fillTH2(h2_mT_lep1eta, mT, lep_eta[0], wgt);
     fillTH2(h2_mT_pfmet, mT, pfmet2D.Mod(), wgt);
@@ -753,12 +964,16 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     if (not isMuon) {
       fillTH1(hlep1sigIetaIeta,(Double_t) lep_sigmaIetaIeta[0], wgt);
       fillTH1(hlep1r9,(Double_t) lep_r9[0], wgt);
-      fillTH1(hdetaIn,(Double_t) lep_detaIn[0], wgt);    
-      fillTH1(hdphiIn,(Double_t) lep_dphiIn[0], wgt);
+      fillTH1(hdetaIn,(Double_t) absLep1DetaIn, wgt);    
+      fillTH1(hdphiIn,(Double_t) absLep1DphiIn, wgt);
       fillTH2(h2_mT_lep1sigIetaIeta, mT, lep_sigmaIetaIeta[0], wgt);
       fillTH2(h2_mT_lep1r9, mT, lep_r9[0], wgt);
       fillTH2(h2_lep1pt_lep1sigIetaIeta, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
       fillTH2(h2_lep1pt_lep1r9, lep_pt[0], lep_r9[0], wgt); 
+      fillTH2(h2_mT_detaIn, mT, (Double_t) absLep1DetaIn, wgt);
+      fillTH2(h2_mT_dphiIn, mT, (Double_t) absLep1DphiIn, wgt);
+      fillTH2(h2_lep1pt_detaIn, lep_pt[0], (Double_t) absLep1DetaIn, wgt);
+      fillTH2(h2_lep1pt_dphiIn, lep_pt[0], (Double_t) absLep1DphiIn, wgt); 
     }      
 
     if (negativeLeptonHasPassedSelection) {
@@ -954,11 +1169,16 @@ void makeWBosonVariableHistograms8TeV(const string& inputDIR = "./", const strin
   if (isMuon) {
     fillHistograms(inputDIR, outputDIR, Sample::data_singleMu, outputFile, QCD_enriched_region, isMuon);
     fillHistograms(inputDIR, outputDIR, Sample::qcd_mu, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
   } else {
     fillHistograms(inputDIR, outputDIR, Sample::data_singleEG, outputFile, QCD_enriched_region, isMuon);
     // fillHistograms(inputDIR, outputDIR, Sample::qcd_ele, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
   }
-  fillHistograms(inputDIR, outputDIR, Sample::wjets, outputFile, QCD_enriched_region, isMuon);
+  //  fillHistograms(inputDIR, outputDIR, Sample::wjets, outputFile, QCD_enriched_region, isMuon);
+  fillHistograms(inputDIR, outputDIR, Sample::wtaunujets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::zjets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::top, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::diboson, outputFile, QCD_enriched_region, isMuon);
