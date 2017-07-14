@@ -884,7 +884,7 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   canvas->SetTickx(1);
   canvas->SetTicky(1);
   canvas->cd();
-  canvas->SetBottomMargin(0.3);
+  if (drawRatioWithNominal) canvas->SetBottomMargin(0.3);
   canvas->SetRightMargin(0.06);
 
   TPad *pad2 = new TPad("pad2","pad2",0,0.,1,0.9);
@@ -905,8 +905,15 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
     vecHist1d[i]->SetLineWidth(2);
   }
 
-  vecHist1d[0]->GetXaxis()->SetLabelSize(0);
-  vecHist1d[0]->GetXaxis()->SetTitle(0);
+  if (drawRatioWithNominal) {
+    vecHist1d[0]->GetXaxis()->SetLabelSize(0);
+    vecHist1d[0]->GetXaxis()->SetTitle(0);
+  } else {
+    vecHist1d[0]->GetXaxis()->SetTitle(xAxisName.c_str());
+    // vecHist1d[0]->GetXaxis()->SetTitleOffset(0.8);
+    vecHist1d[0]->GetXaxis()->SetLabelSize(0.04);
+    vecHist1d[0]->GetXaxis()->SetTitleSize(0.05);    
+  }
   vecHist1d[0]->GetYaxis()->SetTitle(yAxisName.c_str());
   vecHist1d[0]->GetYaxis()->SetTitleOffset(1.1);
   // vecHist1d[0]->GetYaxis()->SetTitleOffset(0.8);  // was 1.03 without setting also the size
@@ -952,14 +959,14 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   if (setXAxisRangeFromUser) vecHist1d[0]->GetXaxis()->SetRangeUser(xmin,xmax);
   //////////////////////
 
-  vecHist1d[0]->Draw("HE");
+  vecHist1d[0]->Draw("Hist");
   vecHist1d[0]->SetFillColor(0);
   vecHist1d[0]->SetMarkerStyle(0);
   for (UInt_t i = 1; i < vecHist1d.size(); i++) {
     vecHist1d[i]->Draw("hist same");
   }
 
-  TLegend leg (0.6,0.75,0.95,0.9);
+  TLegend leg (0.58,0.75,0.93,0.9);
   leg.SetFillColor(0);
   leg.SetFillStyle(0);
   leg.SetBorderSize(0);
@@ -970,61 +977,65 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   canvas->RedrawAxis("sameaxis");
 
   //  CMS_lumi(canvas,Form("%.1f",lumi));
-  if (lumi < 0) CMS_lumi(canvas,"",false,false);
-  else CMS_lumi(canvas,Form("%.1f",lumi),false,false);
+  bool cmsPreliminaryIsUp = false;
+  if (yAxisName == "a.u.") cmsPreliminaryIsUp = true;
+  if (lumi < 0) CMS_lumi(canvas,"",cmsPreliminaryIsUp,false);
+  else CMS_lumi(canvas,Form("%.1f",lumi),cmsPreliminaryIsUp,false);
   setTDRStyle();
 
-  pad2->Draw();
-  pad2->cd();
+  if (drawRatioWithNominal) {
+    pad2->Draw();
+    pad2->cd();
+  
+    frame->Reset("ICES");
+    if (canvasName.find("comparisonMassVariation") != string::npos) {
+      frame->GetYaxis()->SetRangeUser(0.99, 1.01);
+      /* if      (outputDIR.find("/eta_0/") != string::npos) frame->GetYaxis()->SetRangeUser(0.99, 1.01); */
+      /* else if (outputDIR.find("/eta_1/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
+      /* else if (outputDIR.find("/eta_2/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
+    } else frame->GetYaxis()->SetRangeUser(0.9,1.1);
+    frame->GetYaxis()->SetNdivisions(5);
+    frame->GetYaxis()->SetTitle(ratioPadYaxisName.c_str());
+    frame->GetYaxis()->SetTitleOffset(1.2);
+    // frame->GetYaxis()->SetTitleSize(0.15);
+    frame->GetYaxis()->CenterTitle();
+    frame->GetXaxis()->SetTitle(xAxisName.c_str());
+    if (setXAxisRangeFromUser) frame->GetXaxis()->SetRangeUser(xmin,xmax);
+    // frame->GetXaxis()->SetTitleOffset(0.8);
+    frame->GetXaxis()->SetTitleSize(0.05);
 
-  frame->Reset("ICES");
-  if (canvasName.find("comparisonMassVariation") != string::npos) {
-    frame->GetYaxis()->SetRangeUser(0.99, 1.01);
-    /* if      (outputDIR.find("/eta_0/") != string::npos) frame->GetYaxis()->SetRangeUser(0.99, 1.01); */
-    /* else if (outputDIR.find("/eta_1/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
-    /* else if (outputDIR.find("/eta_2/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
-  }
-  else frame->GetYaxis()->SetRangeUser(0.9,1.1);
-  frame->GetYaxis()->SetNdivisions(5);
-  frame->GetYaxis()->SetTitle(ratioPadYaxisName.c_str());
-  frame->GetYaxis()->SetTitleOffset(1.2);
-  // frame->GetYaxis()->SetTitleSize(0.15);
-  frame->GetYaxis()->CenterTitle();
-  frame->GetXaxis()->SetTitle(xAxisName.c_str());
-  if (setXAxisRangeFromUser) frame->GetXaxis()->SetRangeUser(xmin,xmax);
-  // frame->GetXaxis()->SetTitleOffset(0.8);
-  frame->GetXaxis()->SetTitleSize(0.05);
+    vector<TH1D*> ratio;
+    for (UInt_t ivar = 1; ivar < vecHist1d.size(); ivar++) 
+      ratio.push_back( (TH1D*) vecHist1d[ivar]->Clone(Form("ratio_%d",ivar)) );
 
-  vector<TH1D*> ratio;
-  for (UInt_t ivar = 1; ivar < vecHist1d.size(); ivar++) 
-    ratio.push_back( (TH1D*) vecHist1d[ivar]->Clone(Form("ratio_%d",ivar)) );
+    TH1D* den_noerr = (TH1D*) vecHist1d[0]->Clone("den_noerr");
+    TH1D* den = (TH1D*) vecHist1d[0]->Clone("den");
+    for(int iBin = 1; iBin < den->GetNbinsX()+1; iBin++)
+      den_noerr->SetBinError(iBin,0.);
 
-  TH1D* den_noerr = (TH1D*) vecHist1d[0]->Clone("den_noerr");
-  TH1D* den = (TH1D*) vecHist1d[0]->Clone("den");
-  for(int iBin = 1; iBin < den->GetNbinsX()+1; iBin++)
-    den_noerr->SetBinError(iBin,0.);
-
-  den->Divide(den_noerr);
-  den->SetFillColor(kGray);
-  frame->Draw();
-  den->Draw("E2same");
-  for (UInt_t ir = 0; ir < ratio.size(); ir++) {
-    ratio[ir]->Divide(den_noerr);
-    // ratio[ir]->SetMarkerSize(0.65);
-    // ratio[ir]->Draw("EPsame");
-    ratio[ir]->SetMarkerStyle(0);
-    ratio[ir]->SetLineWidth(2);
-    ratio[ir]->Draw("Hist same");
-  }
+    den->Divide(den_noerr);
+    den->SetFillColor(kGray);
+    frame->Draw();
+    den->Draw("E2same");
+    for (UInt_t ir = 0; ir < ratio.size(); ir++) {
+      ratio[ir]->Divide(den_noerr);
+      // ratio[ir]->SetMarkerSize(0.65);
+      // ratio[ir]->Draw("EPsame");
+      ratio[ir]->SetMarkerStyle(0);
+      ratio[ir]->SetLineWidth(2);
+      ratio[ir]->Draw("Hist same");
+    }
  
 
-  TF1* line = new TF1("horiz_line","1",den->GetXaxis()->GetBinLowEdge(1),den->GetXaxis()->GetBinLowEdge(den->GetNbinsX()+1));
-  line->SetLineColor(kBlack);
-  line->SetLineWidth(2);
-  line->Draw("Lsame");
-  // for (UInt_t ir = 0; ir < ratio.size(); ir++)
-  //   ratio[ir]->Draw("EPsame");
-  pad2->RedrawAxis("sameaxis");
+    TF1* line = new TF1("horiz_line","1",den->GetXaxis()->GetBinLowEdge(1),den->GetXaxis()->GetBinLowEdge(den->GetNbinsX()+1));
+    line->SetLineColor(kBlack);
+    line->SetLineWidth(2);
+    line->Draw("Lsame");
+    // for (UInt_t ir = 0; ir < ratio.size(); ir++)
+    //   ratio[ir]->Draw("EPsame");
+    pad2->RedrawAxis("sameaxis");
+
+  }  // end of ratio plot settings
 
   if (canvasName.find("tmpToBeRemoved") == string::npos) { 
     canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
