@@ -898,11 +898,12 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   frame->GetXaxis()->SetLabelSize(0.04);
   frame->SetStats(0);
 
-  Int_t colorList[] = {kBlack, kBlue, kRed, kGreen+2, kYellow+2, kOrange+1, kGreen, kCyan+2, kGray+1, kCyan, kViolet};
+  Int_t colorList[] = {kBlack, kBlue, kRed, kGreen+2, kOrange+1, kCyan, kGreen, kCyan+2, kGray+1, kViolet, kYellow+2};
   vector<Int_t> histColor;
   for (UInt_t i = 0; i < vecHist1d.size(); i++) {   // now color are assigned in reverse order (the main contribution is the last object in the sample array)         
     vecHist1d[i]->SetLineColor(colorList[i]);
     vecHist1d[i]->SetLineWidth(2);
+    vecHist1d[i]->SetFillColor(0);
   }
 
   if (drawRatioWithNominal) {
@@ -966,7 +967,9 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
     vecHist1d[i]->Draw("hist same");
   }
 
-  TLegend leg (0.58,0.75,0.93,0.9);
+  double legLowY = 0.75;
+  if (vecHist1d.size() > 4) legLowY = max( 0.5, legLowY - 0.4 * (vecHist1d.size() - 4) );
+  TLegend leg (0.58,0.70,0.95,0.9);
   leg.SetFillColor(0);
   leg.SetFillStyle(0);
   leg.SetBorderSize(0);
@@ -979,6 +982,8 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   //  CMS_lumi(canvas,Form("%.1f",lumi));
   bool cmsPreliminaryIsUp = false;
   if (yAxisName == "a.u.") cmsPreliminaryIsUp = true;
+  if (canvasName.find("pi0mass_comparison_E") != string::npos) cmsPreliminaryIsUp = false;
+
   if (lumi < 0) CMS_lumi(canvas,"",cmsPreliminaryIsUp,false);
   else CMS_lumi(canvas,Form("%.1f",lumi),cmsPreliminaryIsUp,false);
   setTDRStyle();
@@ -993,6 +998,10 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
       /* if      (outputDIR.find("/eta_0/") != string::npos) frame->GetYaxis()->SetRangeUser(0.99, 1.01); */
       /* else if (outputDIR.find("/eta_1/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
       /* else if (outputDIR.find("/eta_2/") != string::npos) frame->GetYaxis()->SetRangeUser(0.98, 1.02); */
+    } else if (canvasName.find("elescale") != string::npos) {
+      frame->GetYaxis()->SetRangeUser(0.99,1.01);
+    } else if (canvasName.find("elescale") != string::npos) {
+      frame->GetYaxis()->SetRangeUser(0.99,1.01);
     } else frame->GetYaxis()->SetRangeUser(0.9,1.1);
     frame->GetYaxis()->SetNdivisions(5);
     frame->GetYaxis()->SetTitle(ratioPadYaxisName.c_str());
