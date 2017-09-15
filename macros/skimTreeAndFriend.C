@@ -133,12 +133,14 @@ void doSkim(const string& path = "./",
   infriend->SetName("t");
   if (has_sfFriend) insffriend->SetName("t");
 
+  intree->AddFriend(infriend);  // no need to attach sfFriend, evVarFriend is needed to cut on variables if I want to apply a selection
+
   TFile* outfile = new TFile(outfileName.c_str(), "RECREATE");
   if (!outfile || outfile->IsZombie()) {
     std::cout << "Cannot open file " << outfileName << std::endl;
     exit(EXIT_FAILURE);
   }
-  TTree* outtree = intree->CopyTree(""); // dummy selection
+  TTree* outtree = intree->CopyTree(""); // dummy selection, can pass a string as with TTree::Draw() to select events (using also friends if attached)
 
   cout << "Entries before skim = " << nentries << endl;
   cout << "Entries after skim = " << outtree->GetEntries() << "\t(" << (Double_t) 100. * outtree->GetEntries()/nentries << " % efficiency)" << endl;
