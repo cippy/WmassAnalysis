@@ -15,13 +15,13 @@ using namespace std;
 // You call this macro with the same arguments as makeVariableHistograms.C, but using only strings (to build command in an easier way)
 // e.g., if you pass a number or a bool, you write these as if they were strings
 
-void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Bool_t plotOnlyCombined = true) {
+void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Bool_t plotOnlyCombined = true, const Bool_t useEleSkimmedSample = true) {
 
-  //  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
-  //string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/debugTest/";
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_treesV2/";
+  // string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
+  // string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/debugTest_eleEta_QCD_CR_noCutDeta/";
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/hist_23Aug2017_noMetMt_dxyMax0p02/";
 
-  string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
+  string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V3/";  // WARNING: it is actually set for each region below
   string outfileName = "wmass_varhists.root";
 
   string outputDIR = "";
@@ -60,7 +60,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // Wenu
     if (skip_no0_cut1_invCut2 != 1) {
 
-      //inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_WSKIM_V3/";
+      if (useEleSkimmedSample) inputDIR = "/u2/emanuele/TREES_1LEP_53X_V3_WSKIM_V7/";
       outputDIR = outputPath + "Wenu/";
       QCD_enriched_region = "false";
       isMuon = "false";
@@ -86,11 +86,12 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     //correlationCommand = "makeCorrelationStudy8TeV(\"" + outputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
 
     //////////////////////
-    // Wenu inverted iso cut
+    // Wenu inverted cut
     if (skip_no0_cut1_invCut2 != 2) {
       
-      //inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_QCDSKIM_V3/";
-      outputDIR = outputPath + "Wenu_invertIsoCut/";
+      //if (useEleSkimmedSample) inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_QCDSKIM_V3/";
+      if (useEleSkimmedSample) inputDIR = "/u2/emanuele/TREES_1LEP_53X_V3_WSKIM_V7/";
+      outputDIR = outputPath + "Wenu_QCD_CR/";
       QCD_enriched_region = "true";
       isMuon = "false";
       command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
@@ -115,7 +116,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // QCD study W->enu
     // outputDIR = outputPath + "QCD_study/";
     // infile_sigReg = outputPath + "Wenu/wmass_varhists.root"; 
-    // infile_bkgReg = outputPath + "Wenu_invertIsoCut/wmass_varhists.root";
+    // infile_bkgReg = outputPath + "Wenu_QCD_CR/wmass_varhists.root";
     // isMuon = "false";
     // qcdStudyCommand = "makeQCDstudy8TeV(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
     // gROOT->ProcessLine(qcdStudyCommand.c_str());
@@ -127,7 +128,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
 
     /////////////////////
     // Wmunu
-    if (skip_no0_cut1_invCut2 != 2) {
+    if (skip_no0_cut1_invCut2 != 1) {
      
       inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
       outputDIR = outputPath + "Wmunu/";
@@ -157,7 +158,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     if (skip_no0_cut1_invCut2 != 2) {
 
       inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V2/";
-      outputDIR = outputPath + "Wmunu_invertIsoCut/";
+      outputDIR = outputPath + "Wmunu_QCD_CR/";
       QCD_enriched_region = "true";
       isMuon = "true";
       command = "makeWBosonVariableHistograms8TeV(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
@@ -183,7 +184,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
     // QCD study W->munu
     outputDIR = outputPath + "QCD_study/";
     infile_sigReg = outputPath + "Wmunu/wmass_varhists.root"; 
-    infile_bkgReg = outputPath + "Wmunu_invertIsoCut/wmass_varhists.root";
+    infile_bkgReg = outputPath + "Wmunu_QCD_CR/wmass_varhists.root";
     isMuon = "true";
     qcdStudyCommand = "makeQCDstudy8TeV(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
     gROOT->ProcessLine(qcdStudyCommand.c_str());

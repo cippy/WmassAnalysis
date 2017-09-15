@@ -121,13 +121,13 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   // electronID* eleID = NULL; // choose in loop for each event between EB or EE id    
 
   // triggering MVA ID --> https://twiki.cern.ch/twiki/bin/viewauth/CMS/MultivariateElectronIdentification#Triggering_MVA    
-  electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
-  electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
-  electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
+  // electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
+  // electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
+  // electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
 
-  electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);                        
-  electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);                                        
-  electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);  
+  // electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);                        
+  // electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);                                        
+  // electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);  
 
   electronTriggeringMVAID* eleTrigMVAID = NULL; //                                         
 
@@ -139,14 +139,20 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   Int_t chargedLeptonFlavour = isMuon ? 13 : 11;
   Double_t lepEtaThreshold = isMuon ? 2.1 : 1.479; // 1.479  // EB only for electron for now                                   
   Int_t lepTightIdThreshold = isMuon ? 1 : 3;
-  Double_t looseIsoThreshold = isMuon ? 0.2 : 0.15;
+  Double_t looseIsoThreshold = isMuon ? 0.12 : 0.15;  // 0.2 : 0.15
   Double_t tightIsoThreshold = isMuon ? 0.12 : 0.15;
   
   cout << endl;
 
   TChain* chain = new TChain("treeProducerWMassEle");
+  TChain* friendChain = new TChain("mjvars/t");  // leave as NULL if you don't use friend trees                              
+  TChain* SfFriendChain = NULL;
+  if (sampleDir.find("data") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees        
+ 
   vector<Double_t> genwgtVec;
-  buildChain8TeV(chain, genwgtVec, inputDIR, sample);
+  buildChain8TeV(chain, genwgtVec, inputDIR, sample, friendChain, SfFriendChain);
+  // change directory again, when building chain something was messed up                                  
+  dirSample->cd();
 
   TTreeReader reader (chain);
 
@@ -158,11 +164,16 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   TTreeReaderValue<Float_t> pfmet    (reader,"met_pt");
   TTreeReaderValue<Float_t> pfmet_phi(reader,"met_phi");
 
-  // lepGood branch
-  TTreeReaderValue<Int_t> nlep  (reader,"nLepGood");
+  // LepGood for muons, LepCorr for electrons                                                                    
+  string lepVarToUse = isMuon ? "nLepGood" : "nLepCorr";
+  TTreeReaderValue<Int_t> nlep  (reader,lepVarToUse.c_str());
+  lepVarToUse = isMuon ? "LepGood_pt" : "LepCorr_pt";
+  TTreeReaderArray<Float_t> lep_pt (reader,lepVarToUse.c_str());
+  lepVarToUse = isMuon ? "LepGood_eta" : "LepCorr_eta";
+  TTreeReaderArray<Float_t> lep_eta (reader,lepVarToUse.c_str());
+
+  // LepGood branch
   TTreeReaderArray<Int_t> lep_pdgId (reader,"LepGood_pdgId");
-  TTreeReaderArray<Float_t> lep_pt (reader,"LepGood_pt");
-  TTreeReaderArray<Float_t> lep_eta (reader,"LepGood_eta");
   TTreeReaderArray<Float_t> lep_phi (reader,"LepGood_phi");
   TTreeReaderArray<Float_t> lep_mass (reader,"LepGood_mass");
   TTreeReaderArray<Float_t> lep_relIso03 (reader,"LepGood_relIso03");
@@ -174,37 +185,42 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
   TTreeReaderValue<Int_t> nVert(reader,"nVert");
 
   // for electronID
-  TTreeReaderArray<Float_t> lep_detaIn (reader,"LepGood_detaIn");
-  TTreeReaderArray<Float_t> lep_dphiIn (reader,"LepGood_dphiIn");
+  // TTreeReaderArray<Float_t> lep_detaIn (reader,"LepGood_detaIn");
+  // TTreeReaderArray<Float_t> lep_dphiIn (reader,"LepGood_dphiIn");
   TTreeReaderArray<Float_t> lep_sigmaIetaIeta (reader,"LepGood_sigmaIetaIeta");
-  TTreeReaderArray<Float_t> lep_HoE (reader,"LepGood_hcalOverEcal");
-  TTreeReaderArray<Float_t> lep_dxy (reader,"LepGood_dxy");
-  TTreeReaderArray<Float_t> lep_dz (reader,"LepGood_dz");
-  TTreeReaderArray<Int_t> lep_lostHits (reader,"LepGood_lostHits");
-  TTreeReaderArray<Int_t> lep_convVeto (reader,"LepGood_convVetoFull");
-  TTreeReaderArray<Float_t> lep_ecalEnergy (reader,"LepGood_ecalEnergy");
-  TTreeReaderArray<Float_t> lep_eSuperClusterOverP (reader,"LepGood_eSuperClusterOverP");
+  // TTreeReaderArray<Float_t> lep_HoE (reader,"LepGood_hcalOverEcal");
+  // TTreeReaderArray<Float_t> lep_dxy (reader,"LepGood_dxy");
+  // TTreeReaderArray<Float_t> lep_dz (reader,"LepGood_dz");
+  // TTreeReaderArray<Int_t> lep_lostHits (reader,"LepGood_lostHits");
+  // TTreeReaderArray<Int_t> lep_convVeto (reader,"LepGood_convVetoFull");
+  // TTreeReaderArray<Float_t> lep_ecalEnergy (reader,"LepGood_ecalEnergy");
+  // TTreeReaderArray<Float_t> lep_eSuperClusterOverP (reader,"LepGood_eSuperClusterOverP");
   // 1/E - 1/p = 1/ecalEnergy - eSuperClusterOverP/ecalEnergy == (1 - eSuperClusterOverP)/ecalEnergy;
 
   // other electron related branches
   TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_scEta");
   TTreeReaderArray<Float_t> lep_r9 (reader,"LepGood_r9");
   TTreeReaderArray<Float_t> lep_mvaIdTrig (reader,"LepGood_mvaIdTrig"); // value of triggering MVA ID
+
+  TTreeReaderArray<Int_t> lep_eleMVAId (reader,"LepGood_eleMVAId"); //                                                                                 
+  TTreeReaderArray<Int_t> lep_convVetoFull (reader,"LepGood_convVetoFull"); // like conVetoFull, but also includes no missing hits                                   
+  TTreeReaderArray<Float_t> lep_eleMVAPreselId (reader,"LepGood_eleMVAPreselId");
   
   // MC reweight
   // must activate it only for non data sample
   ///////////////////////////////
-  string dummybranch = "metraw_pt";
-  if (sampleDir.find("data") == string::npos) dummybranch = "puWeight";  // PU weight. Can use this in tree because it was computed with all 8 TeV dataset
-  TTreeReaderValue<Float_t> puw (reader,dummybranch.c_str());  // if running on data, create it as a branch existing in tree (it won't be used)
-  dummybranch = "m2l";
-  if (sampleDir.find("data") == string::npos) dummybranch = "LepEff_2lep";  
-  TTreeReaderValue<Float_t> lepEfficiency (reader,dummybranch.c_str());
+
+  TTreeReaderValue<Float_t> *lepEfficiency = NULL;
+  TTreeReaderValue<Float_t> *puw = NULL;
+  if (sampleDir.find("data") == string::npos) {
+    lepEfficiency = new TTreeReaderValue<Float_t>(reader, "SF_LepTight_2l");
+    puw = new TTreeReaderValue<Float_t>(reader, "puWeight");
+  }
 
   // Match of lepton with trigger object 
   TTreeReaderValue<Int_t> HLT_DoubleMu (reader,"HLT_DoubleMu");
   TTreeReaderValue<Int_t> HLT_DoubleEl (reader,"HLT_DoubleEl");
-  TTreeReaderArray<Float_t> lep_trgMatch (reader,"LepGood_trgMatch");
+  //  TTreeReaderArray<Float_t> lep_trgMatch (reader,"LepGood_trgMatch");
 
   long int nTotal = chain->GetEntries();
   long int nEvents = 0;
@@ -270,7 +286,7 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
     if (*nlep != 2) continue;    // 2 leptons
     if (fabs(lep_pdgId[0]) != chargedLeptonFlavour || fabs(lep_pdgId[1]) != chargedLeptonFlavour) continue;  
     if ((lep_pdgId[0] + lep_pdgId[1]) != 0) continue;  
-    if (lep_pt[0] < 30.0 || lep_pt[1] < 10.0) continue;
+    if (lep_pt[0] < 30.0 || lep_pt[1] < 20.0) continue;
     if (fabs(lep_eta[0]) > lepEtaThreshold || fabs(lep_eta[1]) > lepEtaThreshold) continue; 
     // if (lep_trgMatch[0] < 0.5 || lep_trgMatch[1] < 0.5) continue; // avoid using it for now, it could be ill-defined    
 
@@ -323,36 +339,43 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
       /////////////////////////////////////////////
       // triggering ID                                                                                                              
       // lep 1 
-      if (fabs(lep_eta[0]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
-      else if (fabs(lep_eta[0]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
-      else if (fabs(lep_eta[0]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
+      // if (fabs(lep_eta[0]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
+      // else if (fabs(lep_eta[0]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
+      // else if (fabs(lep_eta[0]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
 
-      if (lep_mvaIdTrig[0] < eleTrigMVAID->mva) continue;
-      if (lep_lostHits[0] > eleTrigMVAID->maxMissingHits) continue;
-      if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
-      if (lep_relIso04[0] > eleTrigMVAID->relPFiso) continue;
-      // lep2
-      if (lep_pt[1] < 20) {
-	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_lowPt;
-	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_lowPt;
-	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_lowPt;
-      } else {
-	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
-	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
-	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
-      }
+      // if (lep_mvaIdTrig[0] < eleTrigMVAID->mva) continue;
+      // if (lep_lostHits[0] > eleTrigMVAID->maxMissingHits) continue;
+      // if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
+      // if (lep_relIso04[0] > eleTrigMVAID->relPFiso) continue;
+      // // lep2
+      // if (lep_pt[1] < 20) {
+      // 	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_lowPt;
+      // 	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_lowPt;
+      // 	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_lowPt;
+      // } else {
+      // 	if (fabs(lep_eta[1]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
+      // 	else if (fabs(lep_eta[1]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
+      // 	else if (fabs(lep_eta[1]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
+      // }
 
-      if (lep_mvaIdTrig[1] < eleTrigMVAID->mva) continue;
-      if (lep_lostHits[1] > eleTrigMVAID->maxMissingHits) continue;
-      if (lep_convVeto[1] < eleTrigMVAID->convVeto) continue;
-      if (lep_relIso04[1] > eleTrigMVAID->relPFiso) continue;
+      // if (lep_mvaIdTrig[1] < eleTrigMVAID->mva) continue;
+      // if (lep_lostHits[1] > eleTrigMVAID->maxMissingHits) continue;
+      // if (lep_convVeto[1] < eleTrigMVAID->convVeto) continue;
+      // if (lep_relIso04[1] > eleTrigMVAID->relPFiso) continue;
+      if (lep_eleMVAPreselId[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)             
+      if (lep_eleMVAId[0] < 2) continue;
+      if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections 
+      if (lep_relIso04[0] > tightIsoThreshold) continue;
+      if (lep_eleMVAPreselId[1] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)             
+      if (lep_eleMVAId[1] < 2) continue;
+      if (lep_convVetoFull[1] != 1) continue; // it includes both vertex fit probability and missing hits selections 
+      if (lep_relIso04[1] > looseIsoThreshold) continue;
       //////////////////////////////////////////
 
     }
 
-
     if (*isData == 1) wgt = 1.0;
-    else wgt = intLumi * genwgtVec[ifile] * *puw * *lepEfficiency; 
+    else wgt = intLumi * genwgtVec[ifile] * **puw * **lepEfficiency; 
 
     TLorentzVector lep1Reco, lep2Reco, zReco;
 
@@ -369,7 +392,6 @@ void fillHistograms(vector<recoilResoResp> & recoilTkmet,
 
     if (zRecoPt > ptZmax) continue;
     if (zRecoMass < mZmin || zRecoMass > mZmax) continue;
-
 
     TVector2 tkmetReco, pfmetReco, zReco2D;
     tkmetReco.SetMagPhi(*tkmet,*tkmet_phi);
@@ -1295,6 +1317,7 @@ void makeRecoilResoResp(const string& inputDIR = "./", const string& outputDIR_t
 			const UInt_t skip_no0_sel1_plot2 = 0
 			) {
 
+  cout << "makeRecoilResoResp" << endl;
   string outputDIR = outputDIR_tmp;
   outputDIR += isMuon ? "Zmumu/" : "Zee/";
 
@@ -1304,6 +1327,7 @@ void makeRecoilResoResp(const string& inputDIR = "./", const string& outputDIR_t
   TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
 
   cout << endl;
+  cout << "Beginning ..." << endl;
 
   if (skip_no0_sel1_plot2 != 1) makeRecoilResoRespAna(inputDIR, outputDIR, outfileName, isMuon);
   if (skip_no0_sel1_plot2 != 2) {
@@ -1311,5 +1335,10 @@ void makeRecoilResoResp(const string& inputDIR = "./", const string& outputDIR_t
   //cout << "Check" << endl; return;
     plotRecoilResoResp(outputDIR, outfileName, isMuon);
   }
+
+  cout << endl;
+  cout << "The end ..." << endl;
+  cout << endl;
+
 
 }

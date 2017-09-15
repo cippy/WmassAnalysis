@@ -6,21 +6,21 @@
 #define TKMET_CUT 0.0 // global TKMET cut (both SR and CR): met > this
 #define QCD_INVERTED_DXY_THR 0.00 // cut dxy > this  //0.005
 
-#define PFMET_MU_SR 20.0 // pfmet > this value in SR
-#define PFMET_MU_CR 30.0 // pfmet < this value in CR
+#define PFMET_MU_SR 0.0 // pfmet > this value in SR
+#define PFMET_MU_CR 10000.0 // pfmet < this value in CR
 
-#define PFMET_ELE_SR 10.0 // pfmet > this value in SR
-#define PFMET_ELE_CR 20.0 // pfmet < this value in CR
+#define PFMET_ELE_SR 0.0 // pfmet > this value in SR
+#define PFMET_ELE_CR 10000.0 // pfmet < this value in CR
 
 using namespace std;
 
-static Int_t nMtBins = 120;
-static Double_t mtMin = 20;
+static Int_t nMtBins = 140;
+static Double_t mtMin = 0;
 static Double_t mtMax = 140;
 static Int_t nMt2over4Bins = 300;
-static Double_t mt2over4Min = 100;
-static Double_t mt2over4Max = 4900;
-static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_treesV2/";
+static Double_t mt2over4Min = 0;
+static Double_t mt2over4Max = 4800;
+static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_23Aug2017/";
 static Bool_t correctRecoilResponse = false; 
 
 static Bool_t removeZtaggedEvents = false;
@@ -73,7 +73,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   //Double_t eleIso03thr_QCD = 0.1;   // iso < this value
   Double_t eleIso04thr = 0.15;  // iso < this value
-  Double_t eleIso04thr_QCD = 0.05;  // iso > this value
+  Double_t eleIso04thr_QCD = 0.1; // = 0.05;  // iso > this value
   Double_t muIso04thr = 0.12;       // 0.15,  0.2,   0.125
   Double_t muIso04thr_QCD = 0.20;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
 
@@ -205,7 +205,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderArray<Int_t> lep_convVetoFull (reader,"LepGood_convVetoFull"); // like conVetoFull, but also includes no missing hits
 
   TTreeReaderArray<Float_t>* lep_eleMVAPreselId  = NULL;
-  if (not useEleSkimmedSample) lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
+  //if (not useEleSkimmedSample) lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
+  lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
 
   // other electron related branch
   TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_scEta");
@@ -609,8 +610,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     passIsoSel = false;
   
     // selection
-    // if (*nlep != 1) continue;    // 1 leptons                                                  
-    if (*nlep < 1) continue;    // at least 1 lepton, but use leading on to cut                                                   
+    if (*nlep != 1) continue;    // 1 leptons                                                  
+    //if (*nlep < 1) continue;    // at least 1 lepton, but use leading on to cut                                                   
     if (fabs(lep_pdgId[0]) != chargedLeptonFlavour) continue;  // electrons                                                     
     if (lep_pt[0] < 30.0) continue;
     if (fabs(lep_eta[0]) < lepEtaMinThreshold || fabs(lep_eta[0]) > lepEtaMaxThreshold) continue; 
@@ -656,8 +657,29 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       if (*HLT_SingleEl == 0) continue;
 
-      if (fabs(lep_etaSc[0]) < 1.479) eleCut = &eleCut_EB;
-      else                            eleCut = &eleCut_EE;
+      absLep1DetaIn = fabs(lep_detaIn[0]);
+      absLep1DphiIn = fabs(lep_dphiIn[0]);
+      // loose electron id
+      if (fabs(lep_etaSc[0]) < 1.479) {
+	eleCut = &eleCut_EB;
+	if (absLep1DetaIn > 0.007) continue;
+	if (absLep1DphiIn > 0.15) continue;
+	if (lep_sigmaIetaIeta[0] > 0.01) continue;
+	if (lep_HoE[0] > 0.12) continue;
+      } else {
+	eleCut = &eleCut_EE;
+	if (absLep1DetaIn > 0.009) continue;
+	if (absLep1DphiIn > 0.10) continue;
+	if (lep_sigmaIetaIeta[0] > 0.03) continue;
+	if (lep_HoE[0] > 0.10) continue;
+      }
+
+      // implementing electron triggering ID
+      if ((*lep_eleMVAPreselId)[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
+      if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
+
+
+
       // if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
       // if (lep_HoE[0] > eleID->HoE) continue;
       // if (lep_dz[0] > eleID->dz) continue;
@@ -673,15 +695,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       // if (lep_lostHits[0] > eleTrigMVAID->maxMissingHits) continue;
       // if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
 
-      // implementing electron triggering ID
-      // lep_eleMVAPreselId not in electron samples skimmed as QCD CR, in this case don't use the variable to cut
-      if (not useEleSkimmedSample && (*lep_eleMVAPreselId)[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
-      if (lep_eleMVAId[0] < 2) continue;      
-      if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
       // relative isolation cut applied afterwards, to allow for inversion depending on the region
-
-      absLep1DetaIn = fabs(lep_detaIn[0]);
-      absLep1DphiIn = fabs(lep_dphiIn[0]);
 
     }
 
@@ -764,12 +778,13 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       if (QCD_enriched_region) {
 
 	if (PFMET_MU_CR > 0.0 && pfmet2D.Mod() > PFMET_MU_CR) continue;
-	if (lep_dxy[0] < QCD_INVERTED_DXY_THR) continue; // apply dxy cut to select QCD in muon region
+	if (fabs(lep_dxy[0]) < QCD_INVERTED_DXY_THR) continue; // apply dxy cut to select QCD in muon region
 	if (lep_relIso04[0] > muIso04thr_QCD) passIsoSel = true; 
 
       } else {
 
 	if (lep_relIso04[0] < muIso04thr) passIsoSel = true; 
+	if (fabs(lep_dxy[0]) > 0.02) continue; 
 	if (pfmet2D.Mod() < PFMET_MU_SR) continue;
 
       }
@@ -781,8 +796,11 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 	if (PFMET_ELE_CR > 0.0 && pfmet2D.Mod() > PFMET_ELE_CR) continue;
 	if (lep_relIso04[0] > eleIso04thr_QCD) passIsoSel = true;
 	//passIsoSel = true; // no cut on Iso for electrons
+
+	// for the SR the deta,dphi cuts come from the MVA ID
 	if (absLep1DetaIn > eleCut->deta) passDetaSel = true;
       	if (absLep1DphiIn > eleCut->dphi) passDphiSel = true;
+
       	// if (absLep1DetaIn > eleID->dEtaIn) passDetaSel = true;
       	// if (absLep1DphiIn > eleID->dPhiIn) passDphiSel = true;
       	// if (lep_dxy[0] > eleID->dxy) passDxySel = true;
@@ -790,11 +808,16 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       } else {
 
+	///// tight ID
+	if (lep_eleMVAId[0] < 2) continue;      
+	/////
 	if (pfmet2D.Mod() < PFMET_ELE_SR) continue;
 	if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
 	//passIsoSel = true; // no cut on Iso for electrons
-   	if (absLep1DetaIn < eleCut->deta) passDetaSel = true;
-      	if (absLep1DphiIn < eleCut->dphi) passDphiSel = true;
+   	// if (absLep1DetaIn < eleCut->deta) passDetaSel = true;
+      	// if (absLep1DphiIn < eleCut->dphi) passDphiSel = true;
+	passDetaSel = true;
+      	passDphiSel = true;
    
 
       	// if (absLep1DetaIn < eleID->dEtaIn) passDetaSel = true;
@@ -1076,14 +1099,14 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   ////////////////////////////////////////////
   // tmp plot to be removed to adjust settings in CMS_lumi     
-  TH2D* h2tmp = new TH2D("h2tmp","",2,0,2,2,0,2);
-  h2tmp->Fill(0.8,0.8,4);
-  h2tmp->Fill(0.5,1.2,2);
-  h2tmp->Fill(1.2,1.1,5);
-  h2tmp->Fill(1.8,0.5,3);
-  drawCorrelationPlot(h2tmp, "variable 1", "variable 2", "tmpToBeRemoved", "tmp object", outputDIR);
-  system(("rm " + outputDIR + "*tmpToBeRemoved*").c_str());
-  delete h2tmp;
+  // TH2D* h2tmp = new TH2D("h2tmp","",2,0,2,2,0,2);
+  // h2tmp->Fill(0.8,0.8,4);
+  // h2tmp->Fill(0.5,1.2,2);
+  // h2tmp->Fill(1.2,1.1,5);
+  // h2tmp->Fill(1.8,0.5,3);
+  // drawCorrelationPlot(h2tmp, "variable 1", "variable 2", "tmpToBeRemoved", "tmp object", outputDIR);
+  // system(("rm " + outputDIR + "*tmpToBeRemoved*").c_str());
+  // delete h2tmp;
   ////////////////////////////////////////////
 
   string corr_outputDIR = "";

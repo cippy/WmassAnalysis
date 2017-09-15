@@ -7,6 +7,47 @@ using namespace std;
 //static vector<string> sampleDir = {"data_doubleEG", "zjets"};
 //static Double_t intLumi = 36.4;
 
+//=============================================
+
+
+class plotManager {
+
+public:
+  plotManager(const string & histName,
+	      const string & xAxisName,
+	      const string & canvasName,
+	      const int    & rebinFactor
+	      ) 
+  {
+    histName_    = histName;
+    xAxisName_   = xAxisName;
+    canvasName_  = canvasName;
+    rebinFactor_ = rebinFactor;
+  };
+
+  ~plotManager() {};
+
+  string getHistName()    const { return histName_;    };
+  string getXaxisName()   const { return xAxisName_;   };
+  string getCanvasName()  const { return canvasName_;  };
+  int    getRebinFactor() const { return rebinFactor_; };
+
+  void setHistName   (const string & histName  )  { histName_    = histName;    };
+  void setXaxisName  (const string & xAxisName )  { xAxisName_   = xAxisName;   };
+  void setCanvasName (const string & canvasName)  { canvasName_  = canvasName;  };  
+  void setRebinFactor(const int    & rebinFactor) { rebinFactor_ = rebinFactor; };
+
+private:
+
+  string histName_;
+  string xAxisName_;
+  string canvasName_;    
+  int    rebinFactor_;
+
+};
+
+//=============================================
+
 void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./", 
 			 const string& inputFileName_tmp = "wmass_varhists.root", 
 			 const Bool_t isWregion = false, 
@@ -49,113 +90,37 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   }
   string lepton = isMuon ? "muon" : "electron";
 
-  vector<Int_t> rebinFactor;
-
-  vector<string> hvarName;
-  //hvarName.push_back("hbosoneta");      rebinFactor.push_back(2);
-  hvarName.push_back("hlep1eta");      rebinFactor.push_back(1);
-  hvarName.push_back("hpfmet");      rebinFactor.push_back(2);
-  hvarName.push_back("htkmet");      rebinFactor.push_back(2);
-  hvarName.push_back("hlep1pt");      rebinFactor.push_back(1);
-  hvarName.push_back("hlep1pt2");      rebinFactor.push_back(2);
-  hvarName.push_back("hlep2pt");      rebinFactor.push_back(1);
-  hvarName.push_back("hbosonpt");      rebinFactor.push_back(1);
-  // hvarName.push_back("hbosonpt_wlike");      rebinFactor.push_back(1);
-  hvarName.push_back("hmT");      rebinFactor.push_back(2);
-  hvarName.push_back("hmT2over4");      rebinFactor.push_back(4);
-  hvarName.push_back("hrecoil");      rebinFactor.push_back(1);
-  hvarName.push_back("hdxy");      rebinFactor.push_back(1);
-  hvarName.push_back("hdphiLepMet");      rebinFactor.push_back(1);
-  hvarName.push_back("hlep1relIso04");      rebinFactor.push_back(1);   
-  hvarName.push_back("hlep1relIso04_noIsoCut");      rebinFactor.push_back(1);   
+  vector<plotManager> myPlot;
+  myPlot.push_back(plotManager("hlep1eta",(lepton + " #eta").c_str(),"etaLep1",1));
+  myPlot.push_back(plotManager("hpfmet","PF E_{T}^{miss} [GeV]","pfmet",2));
+  myPlot.push_back(plotManager("htkmet","tracker E_{T}^{miss} [GeV]","tkmet",2));
+  myPlot.push_back(plotManager("hlep1pt",(lepton + " p_{T} [GeV]").c_str(),"ptLep1",1));
+  myPlot.push_back(plotManager("hlep1pt2",(lepton + " p_{T}^{2} [GeV^{2}]::850,3100").c_str(),"ptLep1square",2));
+  myPlot.push_back(plotManager("hlep2pt","tracker E_{T}^{miss} (neutrino p_{T}) [GeV]","ptLep2",1));
+  myPlot.push_back(plotManager("hbosonpt","W p_{T} [GeV]","ptBoson",1));
+  myPlot.push_back(plotManager("hmT","W transverse mass [GeV]","mtBosonWlike",2));
+  myPlot.push_back(plotManager("hmT2over4","W m_{T}^{2}/4 [GeV^{2}]","mt2over4",4));
+  myPlot.push_back(plotManager("hrecoil","recoil [GeV]","recoil",1));
+  myPlot.push_back(plotManager("hdxy","track #Deltaxy [cm]","dxy",1));
+  myPlot.push_back(plotManager("hdphiLepMet",("#Delta#phi(" + lepton + ",E_{T}^{miss})::1.5,3.2").c_str(),"dphiLepMet",1));
+  myPlot.push_back(plotManager("hlep1relIso04",(lepton + " isolation (relIso04)").c_str(),"lep1relIso04",1));
+  myPlot.push_back(plotManager("hlep1relIso04_noIsoCut",(lepton + " isolation (relIso04)").c_str(),"lep1relIso04_noIsoCut",1));
   if (not isMuon) {
-    hvarName.push_back("hlep1sigIetaIeta");      rebinFactor.push_back(1);
-    hvarName.push_back("hlep1relIso03");      rebinFactor.push_back(2);
-    hvarName.push_back("hlep1r9");      rebinFactor.push_back(1);     
-    hvarName.push_back("hdetaIn");      rebinFactor.push_back(1);     
-    hvarName.push_back("hdphiIn");      rebinFactor.push_back(1);     
-    // hvarName.push_back("hdetaIn_noCut");      rebinFactor.push_back(1);     
-    // hvarName.push_back("hdphiIn_noCut");      rebinFactor.push_back(1);     
-    // hvarName.push_back("hdxy_noCut");      rebinFactor.push_back(1);     
-  }
-
-  for (UInt_t i = 0; i < hvarName.size(); i++) {
-    if (separatePositiveAndNegative == 1) hvarName[i] = hvarName[i] + "_plus";
-    if (separatePositiveAndNegative == 2) hvarName[i] = hvarName[i] + "_minus";
-  }     
-
-
-  vector<string> xAxisTitle;  // use "title::lowrange::uprange to pass lower and upper value for range
-  //xAxisTitle.push_back("boson #eta");
-  xAxisTitle.push_back((lepton + " #eta").c_str() );
-  xAxisTitle.push_back("PF E_{T}^{miss} [GeV]");
-  xAxisTitle.push_back("tracker E_{T}^{miss} [GeV]");
-  xAxisTitle.push_back((lepton + " p_{T} [GeV]").c_str());
-  xAxisTitle.push_back((lepton + " p_{T}^{2} [GeV^{2}]::850,3100").c_str());
-  if (isWregion) {
-    if (useTrackMet) xAxisTitle.push_back("tracker E_{T}^{miss} (neutrino p_{T}) [GeV]");
-    else xAxisTitle.push_back("PF E_{T}^{miss} (neutrino p_{T}) [GeV]");
-  }
-  else xAxisTitle.push_back("E_{T}^{miss} W-like (E_{T,no-lep2}^{miss}) [GeV]");
-  xAxisTitle.push_back("boson p_{T} [GeV]");
-  //xAxisTitle.push_back("boson p_{T} (W-like) [GeV]");
-  if (isWregion) {
-    xAxisTitle.push_back("W transverse mass [GeV]");
-    xAxisTitle.push_back("W m_{T}^{2}/4 [GeV^{2}]");
-  }
-  else {
-    xAxisTitle.push_back("Z transverse mass (W-like) [GeV]");
-    xAxisTitle.push_back("Z m_{T}^{2}/4 (W-like) [GeV]");
-  }
-  xAxisTitle.push_back("recoil [GeV]");
-  xAxisTitle.push_back("track #Deltaxy [cm]");
-  xAxisTitle.push_back(("#Delta#phi(" + lepton + ",E_{T}^{miss})::1.5,3.2").c_str());
-  xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
-  xAxisTitle.push_back((lepton + " isolation (relIso04)").c_str());
-  if (not isMuon) { 
-    xAxisTitle.push_back((lepton + " #sigma_{i#etai#eta}").c_str());
-    xAxisTitle.push_back((lepton + " isolation (relIso03)").c_str());
-    xAxisTitle.push_back((lepton + " R9").c_str());
-    xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)::0.0,0.05").c_str());
-    xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
-    // xAxisTitle.push_back((lepton + " #Delta#eta(track,SC)").c_str());
-    // xAxisTitle.push_back((lepton + " #Delta#phi(track,SC)").c_str());
-    // xAxisTitle.push_back((lepton + " #Deltaxy [cm]").c_str());
-  }
-
-  vector<string> canvasTitle;
-  //canvasTitle.push_back("etaBoson");
-  canvasTitle.push_back("etaLep1");
-  canvasTitle.push_back("pfmet");
-  canvasTitle.push_back("tkmet");
-  canvasTitle.push_back("ptLep1");
-  canvasTitle.push_back("ptLep1square");
-  canvasTitle.push_back("ptLep2");
-  canvasTitle.push_back("ptBoson");
-  //canvasTitle.push_back("ptBosonWlike");
-  canvasTitle.push_back("mtBosonWlike");
-  canvasTitle.push_back("mt2over4");
-  canvasTitle.push_back("recoil");
-  canvasTitle.push_back("dxy");
-  canvasTitle.push_back("dphiLepMet");
-  canvasTitle.push_back("lep1relIso04");
-  canvasTitle.push_back("lep1relIso04_noIsoCut");
-  if (not isMuon) {
-    canvasTitle.push_back("lep1sigmaIetaIeta");
-    canvasTitle.push_back("lep1relIso03");
-    canvasTitle.push_back("lep1r9");
-    canvasTitle.push_back("lep1detaIn");
-    canvasTitle.push_back("lep1dphiIn");
-    // canvasTitle.push_back("lep1detaIn_noCut");
-    // canvasTitle.push_back("lep1dphiIn_noCut");
-    // canvasTitle.push_back("lep1dxy_noCut");
-  }
-
-  //////////////////////////
-  // see if using absolute or relative iso
-  // add suffix about the region in canvas title
-  for (UInt_t i = 0; i < canvasTitle.size(); i++) {
-    canvasTitle[i] = canvasTitle[i] + "_" + plotNameID;
+    myPlot.push_back(plotManager("hlep1sigIetaIeta",(lepton + " #sigma_{i#etai#eta}").c_str(),"lep1sigmaIetaIeta",1));
+    myPlot.push_back(plotManager("hlep1relIso03",(lepton + " isolation (relIso03)").c_str(),"lep1relIso03",1));
+    myPlot.push_back(plotManager("hlep1relIso03_noIsoCut",(lepton + " isolation (relIso03)::0.0,0.5").c_str(),"lep1relIso03_noIsoCut",1));
+    myPlot.push_back(plotManager("hlep1r9",(lepton + " R9").c_str(),"lep1r9",1));
+    myPlot.push_back(plotManager("hdetaIn",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn",1));
+    myPlot.push_back(plotManager("hdphiIn",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn",1));
+    myPlot.push_back(plotManager("hdetaIn_noCut",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCut",1));
+    myPlot.push_back(plotManager("hdphiIn_noCut",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCut",1));
+    myPlot.push_back(plotManager("hdetaIn_noCutDphiDeta",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCutDphiDeta",1));
+    myPlot.push_back(plotManager("hdphiIn_noCutDphiDeta",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCutDphiDeta",1));
+    myPlot.push_back(plotManager("hpfmet_noCutDphiDeta","PF E_{T}^{miss} [GeV]","pfmet_noCutDphiDeta",2));
+    myPlot.push_back(plotManager("hmT_noCutDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutDphiDeta",2));
+    myPlot.push_back(plotManager("hlep1pt_noCutDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutDphiDeta",1));
+    myPlot.push_back(plotManager("hmT_noCutIsoDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutIsoDphiDeta",2));
+    myPlot.push_back(plotManager("hlep1pt_noCutIsoDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutIsoDphiDeta",1));
   }
 
   TH1D* hdata = NULL;
@@ -164,6 +129,9 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   TH1D* hwjets = NULL;
   TH1D* htop = NULL;
   TH1D* hdiboson = NULL;
+  TH1D* hwenujets = NULL;
+  TH1D* hwmunujets = NULL;
+  TH1D* hwtaunujets = NULL;
 
   // tmp plot to be removed to adjust settings in CMS_lumi
   TH1D* htmp1 = new TH1D("htmp1","",1,0,1);
@@ -174,9 +142,16 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   drawTH1dataMCstack(htmp1, htmpVec, "variable", "Events", "tmpToBeRemoved", outputDIR);
   system(("rm " + outputDIR + "*tmpToBeRemoved*").c_str());
 
-  for (UInt_t i = 0; i < hvarName.size(); i++) {
+  for (UInt_t i = 0; i < myPlot.size(); i++) {
 
     //if ( i > 0 ) break;  for tests with only first entry
+
+    if (separatePositiveAndNegative == 1) myPlot[i].setHistName(myPlot[i].getHistName() + "_plus");
+    if (separatePositiveAndNegative == 2) myPlot[i].setHistName(myPlot[i].getHistName() + "_plus");
+    //////////////////////////
+    // add suffix about the region in canvas title
+    myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_" + plotNameID);
+
 
     vector<TH1*> stackElementMC;  // first element is the one on top of the stack
     vector<string> stackLegendMC;
@@ -184,71 +159,99 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
     if (isWregion) {
 
       if (isMuon) {
-	hdata  = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "data_singleMu");
-	hwjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "wjets");
-	hqcd   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "qcd_mu");
-	hzjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "zjets");
-	htop   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "top");
-	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "diboson");
+	hdata  = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "data_singleMu");
+	hwmunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wmunujets");
+	hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_mu");
+	hwtaunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wtaunujets");
+	hzjets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "zjets");
+	htop   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "top");
+	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "diboson");
+	hwenujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wenujets");
 
 	checkNotNullPtr(hdata,"hdata");
-	checkNotNullPtr(hwjets,"hwjets");
+	checkNotNullPtr(hwmunujets,"hwmunujets");
 	checkNotNullPtr(hqcd,"hqcd");
+	checkNotNullPtr(hwtaunujets,"hwtaunujets");
 	checkNotNullPtr(hzjets,"hzjets");
 	checkNotNullPtr(htop,"htop");
 	checkNotNullPtr(hdiboson,"hdiboson");
+	checkNotNullPtr(hwenujets,"hwenujets"); // negligible, merge with Wtaunu
+
+	if ( not hwtaunujets->Add(hwenujets) ) {
+	  cout << "#### Error in makeDataMCPlots8TeV() function: failed to merge Wenu histogram in Wtaunu. Exit ..." << endl;
+	  exit(EXIT_FAILURE);
+	}
 
 	// cout << hqcd->Integral() << endl;	
 	// hqcd->Scale(0.00037);
 	// cout << hqcd->Integral() << endl;	
 
-	stackElementMC.push_back(hwjets);
+	stackElementMC.push_back(hwmunujets);
 	stackElementMC.push_back(hqcd);
+	stackElementMC.push_back(hwtaunujets);
 	stackElementMC.push_back(hzjets);
 	stackElementMC.push_back(htop);
 	stackElementMC.push_back(hdiboson);
-	
-	stackLegendMC.push_back("W(l#nu)+jets");
+	//stackElementMC.push_back(hwenujets);	
+
+	stackLegendMC.push_back("W(#mu#nu)+jets");
 	stackLegendMC.push_back("QCD");
+	stackLegendMC.push_back("W(#tau#nu)+jets");
 	stackLegendMC.push_back("Z(ll)+jets");
 	stackLegendMC.push_back("t#bar{t}, single top");
 	stackLegendMC.push_back("WW, WZ");
+	//stackLegendMC.push_back("W(e#nu)+jets");
 
       } else {
-	hdata  = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "data_singleEG");
-	hwjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "wjets");
-	//hqcd   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "qcd_ele");    
-	hzjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "zjets");
-	htop   = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "top");
-	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "diboson");
+
+	hdata  = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "data_singleEG");
+	hwenujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wenujets");
+	hwtaunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wtaunujets");
+	//hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_ele");    
+	hzjets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "zjets");
+	htop   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "top");
+	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "diboson");
+	hwmunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wmunujets");
 
 	checkNotNullPtr(hdata,"hdata");
-	checkNotNullPtr(hwjets,"hwjets");
+	checkNotNullPtr(hwenujets,"hwenujets");
+	checkNotNullPtr(hwtaunujets,"hwtaunujets");
 	//checkNotNullPtr(hqcd,"hqcd");
 	checkNotNullPtr(hzjets,"hzjets");
 	checkNotNullPtr(htop,"htop");
 	checkNotNullPtr(hdiboson,"hdiboson");
-	
-	stackElementMC.push_back(hwjets);
+	checkNotNullPtr(hwmunujets,"hwjmunuets"); // negligible, merge with Wtaunu
+
+	if ( not hwtaunujets->Add(hwmunujets) ) {
+	  cout << "#### Error in makeDataMCPlots8TeV() function: failed to merge Wmunu histogram in Wtaunu. Exit ..." << endl;
+	  exit(EXIT_FAILURE);
+	}
+
+
+	stackElementMC.push_back(hwenujets);
+	stackElementMC.push_back(hwtaunujets);
 	//stackElementMC.push_back(hqcd);
 	stackElementMC.push_back(hzjets);
 	stackElementMC.push_back(htop);
 	stackElementMC.push_back(hdiboson);	
+	// stackElementMC.push_back(hwmunujets);
 
-	stackLegendMC.push_back("W(l#nu)+jets");
+	stackLegendMC.push_back("W(e#nu)+jets");
+	stackLegendMC.push_back("W(#tau#nu)+jets");
 	//stackLegendMC.push_back("QCD");
 	stackLegendMC.push_back("Z(ll)+jets");
 	stackLegendMC.push_back("t#bar{t}, single top");
 	stackLegendMC.push_back("WW, WZ");
+	// stackLegendMC.push_back("W(#mu#nu)+jets");
 
       }      
 
 
     } else {
 
-      hzjets = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "zjets");
-      if (isMuon) hqcd = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "qcd_mu");
-      else hqcd = (TH1D*) getHistCloneFromFile(inputFile, hvarName[i], "qcd_ele");    
+      hzjets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "zjets");
+      if (isMuon) hqcd = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_mu");
+      else hqcd = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_ele");    
 
       checkNotNullPtr(hdata,"hdata");
       checkNotNullPtr(hzjets,"hzjets");
@@ -263,8 +266,8 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
     }
 
 
-    if (hdata == NULL || noPlotData) drawTH1MCstack(stackElementMC, xAxisTitle[i], "Events", canvasTitle[i], outputDIR, stackLegendMC, intLumi, rebinFactor[i]);
-    else drawTH1dataMCstack(hdata, stackElementMC, xAxisTitle[i], "Events", canvasTitle[i], outputDIR, "data", stackLegendMC, "data/MC", intLumi, rebinFactor[i]);
+    if (hdata == NULL || noPlotData) drawTH1MCstack(stackElementMC, myPlot[i].getXaxisName(), "Events", myPlot[i].getCanvasName(), outputDIR, stackLegendMC, intLumi, myPlot[i].getRebinFactor());
+    else drawTH1dataMCstack(hdata, stackElementMC, myPlot[i].getXaxisName(), "Events", myPlot[i].getCanvasName(), outputDIR, "data", stackLegendMC, "data/MC", intLumi, myPlot[i].getRebinFactor());
 
   }
 

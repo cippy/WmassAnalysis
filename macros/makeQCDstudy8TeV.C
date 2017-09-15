@@ -113,7 +113,7 @@ void makeQCDstudy8TeV(const string& outputDIR_tmp = "./",
       else        hvar_bkgReg   = (TH1D*) getHistCloneFromFile(inputFile_bkgReg, hvarName[i], "qcd_ele");
       checkNotNullPtr(hvar_bkgReg,"hvar_bkgReg");
 
-      drawTH1pair(hvar_sigReg, hvar_bkgReg, xAxisname[i], "a.u.", canvasTitle[i], outputDIR, "QCD signal iso", "QCD inverted iso", "sig/bkg",-1,rebinFactor[i]);
+      drawTH1pair(hvar_sigReg, hvar_bkgReg, xAxisname[i], "a.u.", canvasTitle[i], outputDIR, "QCD SR", "QCD CR", "sig/bkg",-1,rebinFactor[i]);
 
     }
 

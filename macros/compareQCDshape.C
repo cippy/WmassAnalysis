@@ -11,6 +11,8 @@ void doCompareQCDshape(const string& outputDIR_tmp = "./",
 		       const Bool_t QCD_enriched_region = false
 		       ) {
   
+  if (tkmet0_pfmet1 == 0) return;
+
   string outputDIR = outputDIR_tmp + "QCD_study/";
   if (isMuon) outputDIR += "wmunu/";
   else outputDIR += "wenu/";
@@ -41,22 +43,22 @@ void doCompareQCDshape(const string& outputDIR_tmp = "./",
 
   string subDir = "";
   if (QCD_enriched_region) {
-    if (isMuon) subDir = "Wmunu_invertIsoCut/";
-    else subDir = "Wenu_invertIsoCut/";
+    if (isMuon) subDir = "Wmunu_QCD_CR/";
+    else subDir = "Wenu_QCD_CR/";
   } else {
     if (isMuon) subDir = "Wmunu/";
     else subDir = "Wenu/";
   }
 
-  inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1/" + subDir + "wmass_varhists.root");
+  inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_03July_massWeightOnW_noPFmetCut/" + subDir + "wmass_varhists.root");
+
   if (tkmet0_pfmet1 == 0) {
     inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_tkmet10/" + subDir + "wmass_varhists.root");
     inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_tkmet20/" + subDir + "wmass_varhists.root");
     inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_tkmet30/" + subDir + "wmass_varhists.root");
   } else {
-    inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_pfmet10/" + subDir + "wmass_varhists.root");
-    inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_pfmet20/" + subDir + "wmass_varhists.root");
-    inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/variableHistograms_new_v3_nlep1p_HLTbit_eta2p1_pfmet30/" + subDir + "wmass_varhists.root");
+    inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_03July_massWeightOnW_PFmetCut_SR10_CR20_/" + subDir + "wmass_varhists.root");
+    inputFileName.push_back("/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_03July_massWeightOnW_PFmetCut_SR20_CR30_/" + subDir + "wmass_varhists.root");
   }
 
 
@@ -67,9 +69,13 @@ void doCompareQCDshape(const string& outputDIR_tmp = "./",
     legEntry.push_back("tracker E_{T}^{miss} > 20");
     legEntry.push_back("tracker E_{T}^{miss} > 30");
   } else {
-    legEntry.push_back("PF E_{T}^{miss} > 10");
-    legEntry.push_back("PF E_{T}^{miss} > 20");
-    legEntry.push_back("PF E_{T}^{miss} > 30");
+    if (QCD_enriched_region) {
+      legEntry.push_back("PF E_{T}^{miss} < 20");
+      legEntry.push_back("PF E_{T}^{miss} < 30");
+    } else {
+      legEntry.push_back("PF E_{T}^{miss} > 10");
+      legEntry.push_back("PF E_{T}^{miss} > 20");
+    }
   }
 
   for (UInt_t i = 0; i < inputFileName.size(); i++) {
@@ -80,10 +86,19 @@ void doCompareQCDshape(const string& outputDIR_tmp = "./",
       exit(EXIT_FAILURE);
     }
     if (isMuon) hvar.push_back( (TH1D*) getHistCloneFromFile(inputFile, hvarName, "qcd_mu") );
-    else        hvar.push_back( (TH1D*) getHistCloneFromFile(inputFile, hvarName, "qcd_ele") );
+    //else        hvar.push_back( (TH1D*) getHistCloneFromFile(inputFile, hvarName, "qcd_ele") );
+    else {
+      if (QCD_enriched_region) {
+	cout << "Warning: QCD shape for electrons in CR currently obtained from data without subtracting other backgrounds." << endl;
+	hvar.push_back( (TH1D*) getHistCloneFromFile(inputFile, hvarName, "data_singleEG") );
+      } else {
+	cout << "Warning: QCD shape for electrons in SR currently not implemented. Skipping this round!" << endl;
+	return;
+      }
+    }
     checkNotNullPtr(hvar[i],"hvar[i]");
 
-    if (hvarName == "hmT") myRebinHisto(hvar.back(),3);
+    if (hvarName == "hmT") myRebinHisto(hvar.back(),4);
     if (scaleHistograms) hvar.back()->Scale(1./hvar.back()->Integral());
 
   }
@@ -95,8 +110,8 @@ void doCompareQCDshape(const string& outputDIR_tmp = "./",
   htmp1->Draw("HE");
   CMS_lumi(cToRemove,"",true,false);
   setTDRStyle();
-  cToRemove->SaveAs("/afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_toBeRemoved.png");
-  system("rm /afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_toBeRemoved.png");
+  // cToRemove->SaveAs("/afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_toBeRemoved.png");
+  // system("rm /afs/cern.ch/user/m/mciprian/www/test_plot/test_roofit_toBeRemoved.png");
   delete htmp1;
   delete cToRemove;
 
