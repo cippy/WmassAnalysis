@@ -413,18 +413,18 @@ void checkTreeAndFriend(const string& path             = "/u2/emanuele/TREES_1LE
    sampleNameDataVector.push_back("DoubleElectronAB");
    sampleNameDataVector.push_back("DoubleElectronC");
    sampleNameDataVector.push_back("DoubleElectronD");
-   // sampleNameDataVector.push_back("DoubleMuAB");
-   // sampleNameDataVector.push_back("DoubleMuC");
-   // sampleNameDataVector.push_back("DoubleMuD");
-   // // sampleNameDataVector.push_back("MuEGAB");
-   // // sampleNameDataVector.push_back("MuEGC");
-   // // sampleNameDataVector.push_back("MuEGD");
-   // sampleNameDataVector.push_back("SingleElectronAB");
-   // sampleNameDataVector.push_back("SingleElectronC");
-   // sampleNameDataVector.push_back("SingleElectronD");
-   // sampleNameDataVector.push_back("SingleMuAB");
-   // sampleNameDataVector.push_back("SingleMuC");
-   // sampleNameDataVector.push_back("SingleMuD");
+   sampleNameDataVector.push_back("DoubleMuAB");
+   sampleNameDataVector.push_back("DoubleMuC");
+   sampleNameDataVector.push_back("DoubleMuD");
+   sampleNameDataVector.push_back("MuEGAB");
+   sampleNameDataVector.push_back("MuEGC");
+   sampleNameDataVector.push_back("MuEGD");
+   sampleNameDataVector.push_back("SingleElectronAB");
+   sampleNameDataVector.push_back("SingleElectronC");
+   sampleNameDataVector.push_back("SingleElectronD");
+   sampleNameDataVector.push_back("SingleMuAB");
+   sampleNameDataVector.push_back("SingleMuC");
+   sampleNameDataVector.push_back("SingleMuD");
 
 
   for (UInt_t i = 0; i < sampleNameDataVector.size(); i++) {
