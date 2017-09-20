@@ -643,6 +643,37 @@ Int_t findGenPartFromZLL(const Int_t nGenParticles,
 
 }
 
+
+//=============================================================                                                                      
+
+Bool_t getAxisRangeFromUser(string& xAxisName, Double_t& xmin, Double_t& xmax, 
+			    const string& xAxisNameTmp = "", 
+			    const string& separator = "::", 
+			    const string& rangeSeparator = ","
+			    ) {
+  
+  Bool_t setXAxisRangeFromUser = false;
+  size_t pos = xAxisNameTmp.find(separator);
+    
+  if (pos != string::npos) {
+    string xrange = "";
+    setXAxisRangeFromUser = true;
+    xAxisName.assign(xAxisNameTmp, 0, pos);
+    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
+    pos = xrange.find(rangeSeparator);
+    string numString = "";
+    numString.assign(xrange,0,pos);
+    xmin = std::stod(numString);
+    numString.assign(xrange,pos + rangeSeparator.size(), string::npos);
+    xmax = std::stod(numString);
+  } else {
+    xAxisName = xAxisNameTmp;
+  }
+
+  return setXAxisRangeFromUser;
+
+}
+
 //=============================================================
 
 void drawTH1pair(TH1* h1, TH1* h2, 
@@ -657,27 +688,9 @@ void drawTH1pair(TH1* h1, TH1* h2,
   TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
 
   string xAxisName = "";
-  string separator = "::";
-  Bool_t setXAxisRangeFromUser = false;
   Double_t xmin = 0;
   Double_t xmax = 0;
-
-  size_t pos = xAxisNameTmp.find(separator);
-  if (pos != string::npos) {
-    string xrange = "";
-    setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos); 
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
-    separator = ",";
-    pos = xrange.find(separator);
-    string numString = ""; 
-    numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
-    numString.assign(xrange,pos + separator.size(), string::npos);
-    xmax = std::stod(numString);
-  } else {
-    xAxisName = xAxisNameTmp;
-  }
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
 
   // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
 
@@ -848,27 +861,9 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
   TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
 
   string xAxisName = "";
-  string separator = "::";
-  Bool_t setXAxisRangeFromUser = false;
   Double_t xmin = 0;
   Double_t xmax = 0;
-
-  size_t pos = xAxisNameTmp.find(separator);
-  if (pos != string::npos) {
-    string xrange = "";
-    setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos); 
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
-    separator = ",";
-    pos = xrange.find(separator);
-    string numString = ""; 
-    numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
-    numString.assign(xrange,pos + separator.size(), string::npos);
-    xmax = std::stod(numString);
-  } else {
-    xAxisName = xAxisNameTmp;
-  }
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
 
   // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
 
@@ -1083,27 +1078,9 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
 {
 
   string xAxisName = "";
-  string separator = "::";
-  Bool_t setXAxisRangeFromUser = false;
   Double_t xmin = 0;
   Double_t xmax = 0;
-  string xrange = "";
-
-  size_t pos = xAxisNameTmp.find(separator);
-  if (pos != string::npos) {
-    setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos); 
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
-    separator = ",";
-    pos = xrange.find(separator);
-    string numString = ""; 
-    numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
-    numString.assign(xrange,pos + separator.size(), string::npos);
-    xmax = std::stod(numString);
-  } else {
-    xAxisName = xAxisNameTmp;
-  }
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
 
   // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
 
@@ -1305,32 +1282,15 @@ TFitResultPtr drawTH1(TH1* h1 = NULL,
 {
 
   string xAxisName = "";
-  string separator = "::";
-  Bool_t setXAxisRangeFromUser = false;
   Double_t xmin = 0;
   Double_t xmax = 0;
-  string xrange = "";
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
+
   string legEntry = "";
   string legHeader = "";
   Bool_t setLegendHeader = false;
 
-  size_t pos = xAxisNameTmp.find(separator);
-  if (pos != string::npos) {
-    setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos); 
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
-    separator = ",";
-    pos = xrange.find(separator);
-    string numString = ""; 
-    numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
-    numString.assign(xrange,pos + separator.size(), string::npos);
-    xmax = std::stod(numString);
-  } else {
-    xAxisName = xAxisNameTmp;
-  }
-
-  separator = "::";
+  string separator = "::";
   pos = legEntryTmp.find(separator);
   if (pos != string::npos) {
     setLegendHeader = true;
@@ -1495,27 +1455,9 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
 {
 
   string xAxisName = "";
-  string separator = "::";
-  Bool_t setXAxisRangeFromUser = false;
   Double_t xmin = 0;
   Double_t xmax = 0;
-  string xrange = "";
-
-  size_t pos = xAxisNameTmp.find(separator);
-  if (pos != string::npos) {
-    setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos); 
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
-    separator = ",";
-    pos = xrange.find(separator);
-    string numString = ""; 
-    numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
-    numString.assign(xrange,pos + separator.size(), string::npos);
-    xmax = std::stod(numString);
-  } else {
-    xAxisName = xAxisNameTmp;
-  }
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
 
   // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
 
@@ -1633,18 +1575,24 @@ void drawCorrelationPlot(TH2* h2D,
 
   h2D->Scale(1./h2D->Integral());
 
-  TGraph2D* h2DGraph = new TGraph2D();
-  h2DGraph->SetNpx(300);
-  h2DGraph->SetNpy(300);
-  int nPoint = 0;
-  for(int iBinX = 0; iBinX < h2D->GetNbinsX() ; iBinX++){
-    for(int iBinY = 0; iBinY < h2D->GetNbinsY() ; iBinY++){
-      h2DGraph->SetPoint(nPoint,h2D->GetXaxis()->GetBinCenter(iBinX+1),h2D->GetYaxis()->GetBinCenter(iBinY+1),h2D->GetBinContent(iBinX+1,iBinY+1));      
-      nPoint++;
-    }
-  }
+  TGraph2D* h2DGraph = NULL;
 
-  TH2* h2DPlot = h2DGraph->GetHistogram();
+  TH2* h2DPlot = NULL;
+  if (not smoothPlot) h2DPlot = h2D;
+  else {
+    h2DGraph = new TGraph2D();
+    h2DGraph->SetNpx(300);
+    h2DGraph->SetNpy(300);
+    int nPoint = 0;
+    for(int iBinX = 0; iBinX < h2D->GetNbinsX() ; iBinX++){
+      for(int iBinY = 0; iBinY < h2D->GetNbinsY() ; iBinY++){
+        h2DGraph->SetPoint(nPoint,h2D->GetXaxis()->GetBinCenter(iBinX+1),h2D->GetYaxis()->GetBinCenter(iBinY+1),h2D->GetBinContent(iBinX+1,iBinY+1));
+        nPoint++;
+      }
+    }
+    h2DPlot = h2DGraph->GetHistogram();
+  }
+  
   h2DPlot->GetXaxis()->SetTitle(labelX.c_str());
   h2DPlot->GetYaxis()->SetTitle(labelY.c_str());
   h2DPlot->GetZaxis()->SetTitle("a.u");   
