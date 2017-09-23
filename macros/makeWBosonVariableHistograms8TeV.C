@@ -6,11 +6,11 @@
 #define TKMET_CUT 0.0 // global TKMET cut (both SR and CR): met > this
 #define QCD_INVERTED_DXY_THR 0.00 // cut dxy > this  //0.005
 
-#define PFMET_MU_SR 0.0 // pfmet > this value in SR
-#define PFMET_MU_CR 10000.0 // pfmet < this value in CR
+#define PFMET_MU_SR 20.0 // pfmet > this value in SR
+#define PFMET_MU_CR 30.0 // pfmet < this value in CR
 
-#define PFMET_ELE_SR 0.0 // pfmet > this value in SR
-#define PFMET_ELE_CR 10000.0 // pfmet < this value in CR
+#define PFMET_ELE_SR 20.0 // pfmet > this value in SR
+#define PFMET_ELE_CR 30.0 // pfmet < this value in CR
 
 using namespace std;
 
@@ -22,8 +22,12 @@ static Double_t mt2over4Min = 0;
 static Double_t mt2over4Max = 4800;
 static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_23Aug2017/";
 static Bool_t correctRecoilResponse = false; 
-
 static Bool_t removeZtaggedEvents = false;
+
+static string eleFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_el_mvatrg.root";
+static string eleFakeRateHistoName = "FR_FullSel_MVATrig_el_data_comb";
+static string muFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_mu_mvatrg.root";
+static string muFakeRateHistoName = "FR_FullSel_MVATrig_mu_data_comb";
 
 static vector<Double_t> muEtaBinEdges_double = {0.0, 0.8, 1.6, 2.1};
 static vector<Double_t> eleEtaBinEdges_double = {0.0, 1.0, 1.479, 2.5};
@@ -148,7 +152,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TChain* chain = new TChain(treeName.c_str());
   TChain* friendChain = new TChain("mjvars/t");  // leave as NULL if you don't use friend trees
   TChain* SfFriendChain = NULL;
-  if (sampleDir.find("data") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees
+  if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees
 
   vector<Double_t> genwgtVec;
   buildChain8TeV(chain, genwgtVec, inputDIR, sample, friendChain, SfFriendChain); 
@@ -222,7 +226,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderValue<Float_t> *puw = NULL; 
   TTreeReaderArray<Float_t> *mwWeight = NULL;
   //TTreeReaderValue<Int_t> *nWMassSteps = NULL;
-  if (sampleDir.find("data") == string::npos) {
+  if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
     lepEfficiency = new TTreeReaderValue<Float_t>(reader, "SF_LepTight_1l");
     puw = new TTreeReaderValue<Float_t>(reader, "puWeight");
     mwWeight = new TTreeReaderArray<Float_t>(reader, "mwWeight"); // mass weight
@@ -315,7 +319,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // histograms with mass weights
   vector<TH1D*> hmT_mw;
   vector<TH1D*> hlep1pt_mw;
-  if (sampleDir.find("data") == string::npos) {
+  if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
     //////////////////////////////////////////////////////
     // must read the tree at least once to get nWMassSteps
     //////////////////////////////////////////////////////
@@ -550,8 +554,46 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   ////////////////////
   ////////////////////
 
-  // cout << "CHECK 6" << endl;
 
+  //////////////////////
+  // use fake rate for electrons to estimate QCD
+  //////////////////////
+  TFile* fakeRateFile = NULL;
+  TH2F* h2fakeRate = NULL;
+
+  if (useFakeRateForElectron && (sampleDir.find("qcd_ele_fake") != string::npos)) {
+
+    fakeRateFile = new TFile(eleFakeRateFileName.c_str(),"READ");
+
+    if (!fakeRateFile || fakeRateFile->IsZombie()) {
+      cout << "Error: file with fake rate not opened. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+    h2fakeRate = (TH2F*) getHist2CloneFromFile(fakeRateFile, eleFakeRateHistoName.c_str(), ""); 
+    
+    checkNotNullPtr(h2fakeRate,"h2fakeRate");
+
+  }
+
+  //////////////////////
+  // use fake rate for muons to estimate QCD
+  //////////////////////
+  if (useFakeRateForMuon && (sampleDir.find("qcd_mu_fake") != string::npos)) {
+
+    fakeRateFile = new TFile(muFakeRateFileName.c_str(),"READ");
+
+    if (!fakeRateFile || fakeRateFile->IsZombie()) {
+      cout << "Error: file with fake rate not opened. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+    h2fakeRate = (TH2F*) getHist2CloneFromFile(fakeRateFile, muFakeRateHistoName.c_str(), ""); 
+    
+    checkNotNullPtr(h2fakeRate,"h2fakeRate");
+
+  }
+
+  ////////////////////
+  ////////////////////
 
   // start event loop                                                                                                                     
                     
@@ -676,8 +718,6 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       // implementing electron triggering ID
       if ((*lep_eleMVAPreselId)[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
-      if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
-
 
 
       // if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
@@ -783,9 +823,24 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       } else {
 
-	if (lep_relIso04[0] < muIso04thr) passIsoSel = true; 
-	if (fabs(lep_dxy[0]) > 0.02) continue; 
-	if (pfmet2D.Mod() < PFMET_MU_SR) continue;
+	if (useFakeRateForMuon && (sampleDir.find("qcd_mu_fake") != string::npos)) {
+
+	  if (lep_relIso04[0] < muIso04thr) {
+	    wgt = 0.0;
+	  } else {
+	    // FIXME
+	    // avoid overflow on x axis (which has pT <= 100.0), otherwise I don't know what happens
+	    // same for y axis with eta
+	    Double_t ptToFindBin = (lep_pt[0] > 100.0) ? 99.0 : lep_pt[0]; 
+	    Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.4) ? 2.395 : fabs(lep_eta[0]); 
+	    wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	  }
+	  passIsoSel = true; 
+	} else {
+	  if (lep_relIso04[0] < muIso04thr) passIsoSel = true; 
+	  if (fabs(lep_dxy[0]) > 0.02) continue; 
+	  if (pfmet2D.Mod() < PFMET_MU_SR) continue;
+	}
 
       }
       
@@ -808,11 +863,28 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
       } else {
 
+	// when using fake rate, must use events that pass loose selection, but not tight one
+	if (useFakeRateForElectron && (sampleDir.find("qcd_ele_fake") != string::npos)) {
+
+	  if (lep_eleMVAId[0] >= 2 && lep_relIso04[0] < eleIso04thr && lep_convVetoFull[0] != 1) {
+	    wgt = 0.0;
+	  } else {
+	    // FIXME
+	    // avoid overflow on x axis (which has pT <= 100.0), otherwise I don't know what happens
+	    // same for y axis with eta
+	    Double_t ptToFindBin = (lep_pt[0] > 100.0) ? 99.0 : lep_pt[0]; 
+	    Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.5) ? 2.495 : fabs(lep_eta[0]); 
+	    wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	  }
+	  passIsoSel = true;  // when using fake rate, consider the event as if it had passed the tight selection, therefore also isolation
+	} else {
+	  if (lep_convVetoFull[0] != 1) continue; // it includes both vertex fit probability and missing hits selections
+	  if (lep_eleMVAId[0] < 2) continue;      
+	  if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
+	}
 	///// tight ID
-	if (lep_eleMVAId[0] < 2) continue;      
 	/////
 	if (pfmet2D.Mod() < PFMET_ELE_SR) continue;
-	if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
 	//passIsoSel = true; // no cut on Iso for electrons
    	// if (absLep1DetaIn < eleCut->deta) passDetaSel = true;
       	// if (absLep1DphiIn < eleCut->dphi) passDphiSel = true;
@@ -1092,6 +1164,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   // delete hRecoilCorrectionTkmet;
   // delete hRecoilCorrectionPfmet;
   delete recoilCorrFile;
+  delete fakeRateFile;
 
   // if the file is opened in UPDATE mode, the following should overwrite an object if its key inside the file already exists
   // this needs to be tested
@@ -1191,12 +1264,14 @@ void makeWBosonVariableHistograms8TeV(const string& inputDIR = "./", const strin
 
   if (isMuon) {
     fillHistograms(inputDIR, outputDIR, Sample::data_singleMu, outputFile, QCD_enriched_region, isMuon);
-    fillHistograms(inputDIR, outputDIR, Sample::qcd_mu, outputFile, QCD_enriched_region, isMuon);
+    if (useFakeRateForMuon && not QCD_enriched_region) fillHistograms(inputDIR, outputDIR, Sample::qcd_mu_fake, outputFile, QCD_enriched_region, isMuon);
+    else fillHistograms(inputDIR, outputDIR, Sample::qcd_mu, outputFile, QCD_enriched_region, isMuon);
     fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
     fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
   } else {
     fillHistograms(inputDIR, outputDIR, Sample::data_singleEG, outputFile, QCD_enriched_region, isMuon);
     // fillHistograms(inputDIR, outputDIR, Sample::qcd_ele, outputFile, QCD_enriched_region, isMuon);
+    if (useFakeRateForElectron && not QCD_enriched_region) fillHistograms(inputDIR, outputDIR, Sample::qcd_ele_fake, outputFile, QCD_enriched_region, isMuon); // use fake rate only in SR
     fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
     fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
   }

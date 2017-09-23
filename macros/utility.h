@@ -80,7 +80,7 @@ using namespace std;
 static string PhpToCopy = "/afs/cern.ch/user/m/mciprian/www/index.php";
 
 // define sample
-enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, wenujets, wmunujets, wtaunujets, zjets, qcd_mu, qcd_ele, top, diboson};
+enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, wenujets, wmunujets, wtaunujets, zjets, qcd_mu, qcd_ele, top, diboson, qcd_ele_fake, qcd_mu_fake};
 enum LepFlavour {electron = 11, muon = 13, tau = 15};
 
 //static Double_t intLumi = 36.4;
@@ -88,7 +88,8 @@ static Double_t intLumi = 19.7;
 static Bool_t use8TeVSample = true;
 static Bool_t useTrackMet = true;
 static Bool_t useAbsIso = false;  // rel iso or abs iso to cut (abs iso is rel iso times lepton pT)
-
+static bool useFakeRateForElectron = true;
+static bool useFakeRateForMuon = true;
 
 // electron ID variable
 class electronID {
@@ -286,6 +287,10 @@ string getStringFromEnumSample(const Sample& sample = Sample::zjets) {
     return "top";
   else if (sample == Sample::diboson)
     return "diboson";
+  else if (sample == Sample::qcd_ele_fake)
+    return "qcd_ele_fake";
+  else if (sample == Sample::qcd_mu_fake)
+    return "qcd_mu_fake";
   else {
     cout << "Error in getStringFromEnumSample(): unknown sample, please check. Exit" << endl;
     exit(EXIT_FAILURE);    
@@ -1291,7 +1296,7 @@ TFitResultPtr drawTH1(TH1* h1 = NULL,
   Bool_t setLegendHeader = false;
 
   string separator = "::";
-  pos = legEntryTmp.find(separator);
+  size_t pos = legEntryTmp.find(separator);
   if (pos != string::npos) {
     setLegendHeader = true;
     legEntry.assign(legEntryTmp, 0, pos); 
@@ -1562,7 +1567,9 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
 void drawCorrelationPlot(TH2* h2D, 
 			 const string & labelX = "xaxis", const string & labelY = "yaxis", 
 			 const string& canvasName = "default", const string& plotLabel = "", const string & outputDIR = "./", 
-			 const Int_t rebinFactorY = 1){
+			 const Int_t rebinFactorY = 1,
+			 const bool smoothPlot = true)
+{
 
   if (rebinFactorY > 1) h2D->RebinY(rebinFactorY);
   
@@ -1863,7 +1870,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
     subSampleNameVector.push_back("DoubleElectronAB");
     subSampleNameVector.push_back("DoubleElectronC");
     subSampleNameVector.push_back("DoubleElectronD");
-  } else if (sample == Sample::data_singleEG) {
+  } else if (sample == Sample::data_singleEG || sample == Sample::qcd_ele_fake) {
     subSampleNameVector.push_back("SingleElectronAB");
     subSampleNameVector.push_back("SingleElectronC");
     subSampleNameVector.push_back("SingleElectronD");
@@ -1871,7 +1878,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
     subSampleNameVector.push_back("DoubleMuAB");
     subSampleNameVector.push_back("DoubleMuC");
     subSampleNameVector.push_back("DoubleMuD");
-  } else if (sample == Sample::data_singleMu) {
+  } else if (sample == Sample::data_singleMu || sample == Sample::qcd_mu_fake) {
     subSampleNameVector.push_back("SingleMuAB");
     subSampleNameVector.push_back("SingleMuC");
     subSampleNameVector.push_back("SingleMuD");

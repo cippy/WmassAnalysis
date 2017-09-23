@@ -105,22 +105,22 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
   myPlot.push_back(plotManager("hdphiLepMet",("#Delta#phi(" + lepton + ",E_{T}^{miss})::1.5,3.2").c_str(),"dphiLepMet",1));
   myPlot.push_back(plotManager("hlep1relIso04",(lepton + " isolation (relIso04)").c_str(),"lep1relIso04",1));
   myPlot.push_back(plotManager("hlep1relIso04_noIsoCut",(lepton + " isolation (relIso04)").c_str(),"lep1relIso04_noIsoCut",1));
-  if (not isMuon) {
+  if (not isMuon && separatePositiveAndNegative == 0) {
     myPlot.push_back(plotManager("hlep1sigIetaIeta",(lepton + " #sigma_{i#etai#eta}").c_str(),"lep1sigmaIetaIeta",1));
     myPlot.push_back(plotManager("hlep1relIso03",(lepton + " isolation (relIso03)").c_str(),"lep1relIso03",1));
     myPlot.push_back(plotManager("hlep1relIso03_noIsoCut",(lepton + " isolation (relIso03)::0.0,0.5").c_str(),"lep1relIso03_noIsoCut",1));
     myPlot.push_back(plotManager("hlep1r9",(lepton + " R9").c_str(),"lep1r9",1));
     myPlot.push_back(plotManager("hdetaIn",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn",1));
     myPlot.push_back(plotManager("hdphiIn",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn",1));
-    myPlot.push_back(plotManager("hdetaIn_noCut",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCut",1));
-    myPlot.push_back(plotManager("hdphiIn_noCut",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCut",1));
-    myPlot.push_back(plotManager("hdetaIn_noCutDphiDeta",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCutDphiDeta",1));
-    myPlot.push_back(plotManager("hdphiIn_noCutDphiDeta",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCutDphiDeta",1));
-    myPlot.push_back(plotManager("hpfmet_noCutDphiDeta","PF E_{T}^{miss} [GeV]","pfmet_noCutDphiDeta",2));
-    myPlot.push_back(plotManager("hmT_noCutDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutDphiDeta",2));
-    myPlot.push_back(plotManager("hlep1pt_noCutDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutDphiDeta",1));
-    myPlot.push_back(plotManager("hmT_noCutIsoDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutIsoDphiDeta",2));
-    myPlot.push_back(plotManager("hlep1pt_noCutIsoDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutIsoDphiDeta",1));
+    // myPlot.push_back(plotManager("hdetaIn_noCut",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCut",1));
+    // myPlot.push_back(plotManager("hdphiIn_noCut",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCut",1));
+    // myPlot.push_back(plotManager("hdetaIn_noCutDphiDeta",(lepton + " #Delta#eta(track,SC)").c_str(),"lep1detaIn_noCutDphiDeta",1));
+    // myPlot.push_back(plotManager("hdphiIn_noCutDphiDeta",(lepton + " #Delta#phi(track,SC)").c_str(),"lep1dphiIn_noCutDphiDeta",1));
+    // myPlot.push_back(plotManager("hpfmet_noCutDphiDeta","PF E_{T}^{miss} [GeV]","pfmet_noCutDphiDeta",2));
+    // myPlot.push_back(plotManager("hmT_noCutDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutDphiDeta",2));
+    // myPlot.push_back(plotManager("hlep1pt_noCutDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutDphiDeta",1));
+    // myPlot.push_back(plotManager("hmT_noCutIsoDphiDeta","W transverse mass [GeV]","mtBosonWlike_noCutIsoDphiDeta",2));
+    // myPlot.push_back(plotManager("hlep1pt_noCutIsoDphiDeta",(lepton + " p_{T} [GeV]").c_str(),"ptLep1_noCutIsoDphiDeta",1));
   }
 
   TH1D* hdata = NULL;
@@ -161,7 +161,8 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
       if (isMuon) {
 	hdata  = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "data_singleMu");
 	hwmunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wmunujets");
-	hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_mu");
+	if (useFakeRateForMuon) hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_mu_fake");
+	else hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_mu");
 	hwtaunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wtaunujets");
 	hzjets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "zjets");
 	htop   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "top");
@@ -195,7 +196,8 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	//stackElementMC.push_back(hwenujets);	
 
 	stackLegendMC.push_back("W(#mu#nu)+jets");
-	stackLegendMC.push_back("QCD");
+	if (useFakeRateForMuon) stackLegendMC.push_back("QCD fake rate");
+	else stackLegendMC.push_back("QCD");
 	stackLegendMC.push_back("W(#tau#nu)+jets");
 	stackLegendMC.push_back("Z(ll)+jets");
 	stackLegendMC.push_back("t#bar{t}, single top");
@@ -207,7 +209,8 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	hdata  = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "data_singleEG");
 	hwenujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wenujets");
 	hwtaunujets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "wtaunujets");
-	//hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_ele");    
+	//hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_ele");
+	if (useFakeRateForElectron) hqcd   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "qcd_ele_fake");
 	hzjets = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "zjets");
 	htop   = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "top");
 	hdiboson = (TH1D*) getHistCloneFromFile(inputFile, myPlot[i].getHistName(), "diboson");
@@ -217,6 +220,7 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	checkNotNullPtr(hwenujets,"hwenujets");
 	checkNotNullPtr(hwtaunujets,"hwtaunujets");
 	//checkNotNullPtr(hqcd,"hqcd");
+	if (useFakeRateForElectron) checkNotNullPtr(hqcd,"hqcd");
 	checkNotNullPtr(hzjets,"hzjets");
 	checkNotNullPtr(htop,"htop");
 	checkNotNullPtr(hdiboson,"hdiboson");
@@ -231,6 +235,7 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	stackElementMC.push_back(hwenujets);
 	stackElementMC.push_back(hwtaunujets);
 	//stackElementMC.push_back(hqcd);
+	if (useFakeRateForElectron) stackElementMC.push_back(hqcd);
 	stackElementMC.push_back(hzjets);
 	stackElementMC.push_back(htop);
 	stackElementMC.push_back(hdiboson);	
@@ -239,6 +244,7 @@ void makeDataMCPlots8TeV(const string& outputDIR_tmp = "./",
 	stackLegendMC.push_back("W(e#nu)+jets");
 	stackLegendMC.push_back("W(#tau#nu)+jets");
 	//stackLegendMC.push_back("QCD");
+	if (useFakeRateForElectron) stackLegendMC.push_back("QCD fake rate");
 	stackLegendMC.push_back("Z(ll)+jets");
 	stackLegendMC.push_back("t#bar{t}, single top");
 	stackLegendMC.push_back("WW, WZ");
