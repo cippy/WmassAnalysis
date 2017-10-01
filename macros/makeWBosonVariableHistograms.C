@@ -1,15 +1,38 @@
 #include "utility.h"
 
+#define CHECK_EVERY_N 50000
+
+#define PFMET_CUT 0.0 // global PFMET cut (both SR and CR): met > this
+#define TKMET_CUT 0.0 // global TKMET cut (both SR and CR): met > this
+#define QCD_INVERTED_DXY_THR 0.00 // cut dxy > this  //0.005
+
+#define PFMET_MU_SR 20.0 // pfmet > this value in SR
+#define PFMET_MU_CR 30.0 // pfmet < this value in CR
+
+#define PFMET_ELE_SR 20.0 // pfmet > this value in SR
+#define PFMET_ELE_CR 30.0 // pfmet < this value in CR
+
 using namespace std;
 
-//static Double_t intLumi = 36.4;
-
-static Int_t nMtBins = 120;
-static Double_t mtMin = 20;
+static Int_t nMtBins = 140;
+static Double_t mtMin = 0;
 static Double_t mtMax = 140;
+static Int_t nMt2over4Bins = 300;
+static Double_t mt2over4Min = 0;
+static Double_t mt2over4Max = 4800;
+static string recoilCorrectionsPathToFile = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/metResoResp_23Aug2017/";
+static Bool_t correctRecoilResponse = false; 
+static Bool_t removeZtaggedEvents = false;
 
-// static Bool_t useTrackMet = true;
-// static Bool_t useAbsIso = true;  // rel iso or abs iso to cut (abs iso is rel iso times lepton pT) 
+// update names to 13 TeV samples
+static string eleFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_el_mvatrg.root";
+static string eleFakeRateHistoName = "FR_FullSel_MVATrig_el_data_comb";
+static string muFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_mu_mvatrg.root";
+static string muFakeRateHistoName = "FR_FullSel_MVATrig_mu_data_comb";
+
+static vector<Double_t> muEtaBinEdges_double = {0.0, 0.8, 1.6, 2.1};
+static vector<Double_t> eleEtaBinEdges_double = {0.0, 1.0, 1.479, 2.5};
+
 
 //=============================================================
 
@@ -18,6 +41,13 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 		    TFile* outputFile = NULL, 
 		    const Bool_t QCD_enriched_region = false, const Bool_t isMuon = false) {
 
+  gROOT->SetBatch(kTRUE);
+  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2()  
+
+  cout << endl;
+  cout << "================================================" << endl;
+  cout << endl;
+
   if (outputFile == NULL) {
     cout << "Error: file is NULL. please check. Exit ..." << endl;
     exit(EXIT_FAILURE);
@@ -25,92 +55,66 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   outputFile->cd();
 
-  cout << "useAbsIso = " << useAbsIso << endl;
+  electronCutThreshold* eleCut = NULL;    
+  electronID* eleID = NULL; // choose in loop for each event between EB or EE id
+  electronTriggeringMVAID* eleTrigMVAID = NULL; //
 
-  Double_t eleIso03thrEB = 0.0588; // 0.0588, 0.075, 0.05
-  Double_t eleIso03thrEE = 0.0571; // 0.0571, 0.075, 0.05
-  Double_t muIso04thr = 0.15;       // 0.15,  0.2,   0.125
-  Double_t relToAbsIsoFactor = 40; // 40
-  Double_t eleIso03thr_QCD = 0.0588;
-  Double_t muIso04thr_QCD = 0.15;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
+  //Double_t eleIso03thr_QCD = 0.1;   // iso < this value
+  Double_t eleIso04thr = 0.15;  // set in loop depending on EB or EE // iso < this value
+  Double_t eleIso04thr_QCD = 0.1; // = 0.05;  // iso > this value
+  Double_t muIso04thr = 0.12;       // 0.15,  0.2,   0.125
+  Double_t muIso04thr_QCD = 0.20;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
 
-  Double_t miniRelIsoThr = 0.08;
-  Double_t miniRelIsoThr_QCD = 0.08;
- 
+  // container for electron selection thresholds
+  // variables are deta, dphi ..., defined in utility.h
+  electronCutThreshold eleCut_EB(0.004,0.03);   // 0.004, 0.03
+  electronCutThreshold eleCut_EE(0.005,0.02);   // 0.005, 0.02
+  // defined just to use dphi and deta cut for electrons, other cuts are not used in this code at the moment
+  // electronID myEleID_EB_8TeV(0.006, 0.07, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
+  // electronID myEleID_EE_8TeV(0.007, 0.05, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1); 
+
   // be consistent with threshold when assigning histogram boundaries
+  // let's use a single binning, then do the plot only in the range.
 
-  Int_t nBins_lepIso03 = 20;  // 20
-  Double_t min_lepIso03 = 0.0; // 0.0
-  Double_t max_lepIso03 = 0.060; // 0.060
-  Int_t nBins_lepIso04 = 30;  // 30
+  Int_t nBins_lepIso04 = 250;  // 30
   Double_t min_lepIso04 = 0.0; // 0.0
-  Double_t max_lepIso04 = 0.15; // 0.150
-
-  Int_t nBins_miniRelIso = 16;  // 30
-  Double_t min_miniRelIso = 0.0; // 0.0
-  Double_t max_miniRelIso = 0.08; // 0.150
-
-  if (QCD_enriched_region) {
-    nBins_lepIso03 = 90;  // 90, 85
-    min_lepIso03 = 0.05; // 0.05, 0.075
-    max_lepIso03 = 0.5; // 0.50
-    nBins_lepIso04 = 35;  // 35,  30
-    min_lepIso04 = 0.15; // 0.15, 0.2
-    max_lepIso04 = 0.500; // 0.500
-    nBins_miniRelIso = 34;  // 35,  30
-    min_miniRelIso = 0.08; // 0.15, 0.2
-    max_miniRelIso = 0.25; // 0.500
-  }
-
-  if (useAbsIso) {
-    // absIso = relIso * 40 GeV (40 GeV is the average pT for a lepton from W, thresholds to be used for selection must be taken accordingly)
-    min_lepIso03 *= relToAbsIsoFactor; // 0.0
-    max_lepIso03 *= relToAbsIsoFactor; // 0.060
-    min_lepIso04 *= relToAbsIsoFactor; // 0.0
-    max_lepIso04 *= relToAbsIsoFactor; // 0.150
-
-  }
+  Double_t max_lepIso04 = 0.500; // 0.150
 
   Int_t chargedLeptonFlavour = isMuon ? 13 : 11;
-  Double_t lepEtaThreshold = isMuon ? 2.4 : 1.479;  // EB only for electron for now
-  Int_t lepTightIdThreshold = isMuon ? 1 : 3;
+  Double_t lepEtaMaxThreshold = isMuon ? 2.1 : 2.5; // mu: 2.1 max, ele: 1.479 (EB max), 2.4 (EE max) // EB only for electron for now
+  Double_t lepEtaMinThreshold = isMuon ? -0.001 : -0.001;
+  Int_t lepTightIdThreshold = isMuon ? 1 : 2;  // for electrons 2 is medium cut based id
 
   TDirectory *dirSample = NULL;
-  if (sample == Sample::data_doubleEG)
-    dirSample = outputFile->mkdir("data_doubleEG");
-  else if (sample == Sample::data_singleEG)
-    dirSample = outputFile->mkdir("data_singleEG");
-  if (sample == Sample::data_doubleMu)
-    dirSample = outputFile->mkdir("data_doubleMu");
-  else if (sample == Sample::data_singleMu)
-    dirSample = outputFile->mkdir("data_singleMu");
-  else if (sample == Sample::zjets) 
-    dirSample = outputFile->mkdir("zjets");
-  else if (sample == Sample::wjets)
-    dirSample = outputFile->mkdir("wjets");
-  else if (sample == Sample::qcd_mu)
-    dirSample = outputFile->mkdir("qcd_mu");
-  else if (sample == Sample::qcd_ele)
-    dirSample = outputFile->mkdir("qcd_ele");
-  else if (sample == Sample::top)
-    dirSample = outputFile->mkdir("top");
-  else if (sample == Sample::diboson)
-    dirSample = outputFile->mkdir("diboson");
-
+  string sampleDir = getStringFromEnumSample(sample).c_str();
+  cout << "Sample --> " << sampleDir << endl;
+  if (outputFile->GetKey(sampleDir.c_str())) dirSample = outputFile->GetDirectory(sampleDir.c_str());
+  else dirSample = outputFile->mkdir(sampleDir.c_str());
   dirSample->cd();
-
-  gROOT->SetBatch(kTRUE);
-  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2()  
 
   cout << endl;
 
+  //string treeName = "tree";
+
   TChain* chain = new TChain("tree");
-  TChain* chFriend = new TChain("mjvars/t");
+  //TChain* friendChain = new TChain("mjvars/t");  // leave as NULL if you don't use friend trees
+  TChain* friendChain = NULL;  // leave as NULL if you don't use friend trees
+  TChain* SfFriendChain = NULL;
+  //if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees
 
   vector<Double_t> genwgtVec;
-  buildChain(chain, chFriend, inputDIR, sample);
+  buildChain(chain, genwgtVec, use8TeVSample, inputDIR, sample, friendChain, SfFriendChain); 
+
+  // change directory again, when building chain something was messed up
+  dirSample->cd();
+  //  cout << "check" << endl;
 
   TTreeReader reader (chain);
+
+  TTreeReaderValue<Int_t> isData  (reader,"isData");
+
+  TTreeReaderValue<Int_t> nVert  (reader,"nVert");
+  TTreeReaderValue<Float_t> rho  (reader,"rho");
 
   // reco met
   TTreeReaderValue<Float_t> tkmet    (reader,"met_trkPt");
@@ -118,406 +122,898 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderValue<Float_t> pfmet    (reader,"met_pt");
   TTreeReaderValue<Float_t> pfmet_phi(reader,"met_phi");
 
-  // lepGood branch
+  // LepGood for muons, LepCorr for electrons
+  string lepVarToUse = isMuon ? "nLepGood" : "nLepCorr";
+  //TTreeReaderArray<Intt_t> nlep (reader,lepVarToUse.c_str());
   TTreeReaderValue<Int_t> nlep  (reader,"nLepGood");
-  TTreeReaderArray<Int_t> lep_pdgId (reader,"LepGood_pdgId");
+  lepVarToUse = isMuon ? "LepGood_pt" : "LepCorr_pt";
   TTreeReaderArray<Float_t> lep_pt (reader,"LepGood_pt");
+  lepVarToUse = isMuon ? "LepGood_eta" : "LepCorr_eta";
   TTreeReaderArray<Float_t> lep_eta (reader,"LepGood_eta");
+
+  // LepGood branch
+  TTreeReaderArray<Int_t> lep_pdgId (reader,"LepGood_pdgId");
   TTreeReaderArray<Float_t> lep_phi (reader,"LepGood_phi");
   TTreeReaderArray<Float_t> lep_mass (reader,"LepGood_mass");
-  TTreeReaderArray<Float_t> lep_relIso03 (reader,"LepGood_relIso03");
   TTreeReaderArray<Float_t> lep_relIso04 (reader,"LepGood_relIso04");
-  TTreeReaderArray<Int_t> lep_tightId (reader,"LepGood_tightId");
-  TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_etaSc");
-  TTreeReaderArray<Float_t> lep_r9 (reader,"LepGood_full5x5_r9");
-  TTreeReaderArray<Float_t> lep_sigmaIetaIeta (reader,"LepGood_full5x5_sigmaIetaIeta");
-  TTreeReaderArray<Int_t> lep_hltSafeID (reader,"LepGood_hltId");
+  TTreeReaderArray<Int_t> lep_tightId (reader,"LepGood_tightId");  // must make sure it is tuned on 8 TeV (it might be based on 13 TeV) 
+  TTreeReaderArray<Int_t> lep_convVeto (reader,"LepGood_convVeto"); // 
+  TTreeReaderArray<Int_t> lep_lostHits (reader,"LepGood_lostHits"); // 
 
-  TTreeReaderArray<Float_t> lep_miniRelIso(reader,"LepGood_miniRelIso");
+  // for electronID
+  TTreeReaderArray<Float_t> lep_detaIn (reader,"LepGood_dEtaScTrkIn");
+  TTreeReaderArray<Float_t> lep_dphiIn (reader,"LepGood_dPhiScTrkIn");
+  // TTreeReaderArray<Float_t> lep_sigmaIetaIeta (reader,"LepGood_sigmaIetaIeta");
+  // TTreeReaderArray<Float_t> lep_HoE (reader,"LepGood_hcalOverEcal");
+  TTreeReaderArray<Float_t> lep_dxy (reader,"LepGood_dxy");
+  // TTreeReaderArray<Float_t> lep_dz (reader,"LepGood_dz");
+  // TTreeReaderArray<Float_t> lep_ecalEnergy (reader,"LepGood_ecalEnergy");
+  // TTreeReaderArray<Float_t> lep_eSuperClusterOverP (reader,"LepGood_eSuperClusterOverP");
+  // 1/E - 1/p = 1/ecalEnergy - eSuperClusterOverP/ecalEnergy == (1 - eSuperClusterOverP)/ecalEnergy;
+
+
+
+
+  // electron MVA ID at 13 TeV (2016)
+  TTreeReaderArray<Float_t> lep_eleMVAId (reader,"LepGood_mvaIdSpring16GP"); // 
+
+
 
   // MC reweight
-  TTreeReaderValue<Float_t> weight(reader,"weight");
-  TTreeReaderValue<Float_t> puw(reader,"puw");
+  // must activate it only for non data sample
+  ///////////////////////////////
+  // use a dummy variable in trees to activate TTreeReaderValue even for data
+  // TTreeReaderValue<Float_t> *lepEfficiency = NULL;
+  // TTreeReaderValue<Float_t> *puw = NULL; 
+  TTreeReaderValue<Float_t> *xsec = NULL;
+  TTreeReaderValue<Float_t> *genWeight = NULL;
+  // //TTreeReaderArray<Float_t> *mwWeight = NULL;
+  // //TTreeReaderValue<Int_t> *nWMassSteps = NULL;
+  if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
+    //   lepEfficiency = new TTreeReaderValue<Float_t>(reader, "SF_LepTight_1l");
+    //   puw = new TTreeReaderValue<Float_t>(reader, "puWeight");
+    //   //mwWeight = new TTreeReaderArray<Float_t>(reader, "mwWeight"); // mass weight
+    //   //nWMassSteps = new TTreeReaderValue<Int_t>(reader, "nWMassSteps"); // number of weights, not used, value chosen by user and put in nMassWeights
+    xsec = new TTreeReaderValue<Float_t>(reader,"xsec");
+    genWeight = new TTreeReaderValue<Float_t>(reader,"genWeight");
+  }
+  // //Int_t nMassWeights = 0;  // set below by reading the tree (it is the same number for each entry, I just need to read the first one 
+
+  // Match of lepton with trigger object 
+  TTreeReaderValue<Int_t> HLT_SingleMu (reader,"HLT_SingleMu");
+  TTreeReaderValue<Int_t> HLT_SingleEl (reader,"HLT_SingleEl");
+
+  // Gen particles
+  Bool_t isWJetsSample = false;
+  Int_t WJetsGenDaughterPdgId = 0;  // avoid using the boolean above, if this integer is > 0 then we are considering a wjets sample
+  if (sampleDir.find("wenujets") != string::npos) {
+    WJetsGenDaughterPdgId = 11;
+  } else if (sampleDir.find("wmunujets") != string::npos) {
+    WJetsGenDaughterPdgId = 13;
+  } else if (sampleDir.find("wtaunujets") != string::npos) {
+    WJetsGenDaughterPdgId = 15;
+  }
+ 
+  // TTreeReaderValue<Int_t> *nGenP6StatusThree = NULL;
+  // TTreeReaderArray<Int_t> *GenP6StatusThree_pdgId = NULL;
+  // TTreeReaderArray<Int_t> *GenP6StatusThree_motherId = NULL;
+  // if (WJetsGenDaughterPdgId > 0 ) {
+  //   nGenP6StatusThree = new TTreeReaderValue<Int_t>(reader,"nGenP6StatusThree"); 
+  //   GenP6StatusThree_pdgId = new TTreeReaderArray<Int_t>(reader,"GenP6StatusThree_pdgId");
+  //   GenP6StatusThree_motherId = new TTreeReaderArray<Int_t>(reader,"GenP6StatusThree_motherId");
+  // }
+
+
+  TTreeReaderValue<Int_t> *ngenLep = NULL;
+  TTreeReaderArray<Int_t> *genLep_pdgId = NULL;
+  TTreeReaderArray<Int_t> *genLep_motherId = NULL;
+  if (WJetsGenDaughterPdgId > 0 ) {
+    ngenLep = new TTreeReaderValue<Int_t>(reader,"ngenLep"); 
+    genLep_pdgId = new TTreeReaderArray<Int_t>(reader,"genLep_pdgId");
+    genLep_motherId = new TTreeReaderArray<Int_t>(reader,"genLep_motherId");
+  }
+
 
   // TH1
-  TH1D* hmT = new TH1D("hmT","",nMtBins, mtMin, mtMax);
-  TH1D* hpfmet = new TH1D("hpfmet","",60,0,300);
-  TH1D* htkmet = new TH1D("htkmet","",60,0,300);
-  TH1D* hlep1pt = new TH1D("hlep1pt","",28,24,80);  //60, 0, 300
-  TH1D* hlep2pt = new TH1D("hlep2pt","",40,0,80);
-  TH1D* hbosonpt = new TH1D("hbosonpt","",30,0,30);
-  TH1D* hbosonpt_wlike = new TH1D("hbosonpt_wlike","",30,0,30);
-  TH1D* hbosoneta = new TH1D("hbosoneta","",100,-5,5);
-  TH1D* hlep1sigIetaIeta = new TH1D("hlep1sigIetaIeta","",25, 0.0, 0.025);
-  TH1D* hlep1relIso03 = new TH1D("hlep1relIso03","",nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH1D* hlep1relIso04 = new TH1D("hlep1relIso04","",nBins_lepIso04,min_lepIso04,max_lepIso04);
-  TH1D* hlep1miniRelIso = new TH1D("hlep1miniRelIso","",nBins_miniRelIso, min_miniRelIso, max_miniRelIso);
-  TH1D* hlep1r9 = new TH1D("hlep1r9","", 55, 0.0, 1.1);
-  TH1D* hrecoil = new TH1D("hrecoil","",30,0,30);
+  vector<TH1D*> hmT;
+  vector<TH1D*> hmT2over4;
+  vector<TH1D*> hpfmet;
+  vector<TH1D*> htkmet;
+  vector<TH1D*> hlep1pt;
+  vector<TH1D*> hlep1pt2;
+  vector<TH1D*> hlep1eta;
+  vector<TH1D*> hlep2pt;
+  vector<TH1D*> hbosonpt;
+  vector<TH1D*> hlep1relIso04;
+  vector<TH1D*> hlep1relIso04_noCut;
+  vector<TH1D*> hrecoil;
+  vector<TH1D*> hdxy;
+  vector<TH1D*> hdphiLepMet;
+  vector<TH1D*> hnVert;
+  vector<TH1D*> hrho;
 
-  TH2D* h2_mT_lep1pt = new TH2D("h2_mT_lep1pt","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta = new TH2D("h2_mT_lep1eta","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
-  TH2D* h2_mT_lep1sigIetaIeta = new TH2D("h2_mT_lep1sigIetaIeta","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
-  TH2D* h2_mT_lep1r9 = new TH2D("h2_mT_lep1r9","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
-  TH2D* h2_mT_pfmet = new TH2D("h2_mT_pfmet","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_tkmet = new TH2D("h2_mT_tkmet","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_bosonPt = new TH2D("h2_mT_bosonPt","",nMtBins, mtMin, mtMax, 30,0,30);
-  TH2D* h2_mT_lep1relIso03 = new TH2D("h2_mT_lep1relIso03","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_mT_lep1relIso04 = new TH2D("h2_mT_lep1relIso04","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
+    // TH2
+  vector<TH2D*> h2_mT_lep1pt;
+  vector<TH2D*> h2_mT_lep1eta;
+  vector<TH2D*> h2_mT_pfmet;
+  vector<TH2D*> h2_mT_tkmet;
+  vector<TH2D*> h2_mT_bosonPt;
+  vector<TH2D*> h2_mT_lep1relIso04;
+  vector<TH2D*> h2_mT_nVert;
+  vector<TH2D*> h2_lep1pt_lep1eta;
+  vector<TH2D*> h2_lep1pt_pfmet;
+  vector<TH2D*> h2_lep1pt_tkmet;
+  vector<TH2D*> h2_lep1pt_bosonPt;
+  vector<TH2D*> h2_lep1pt_lep1relIso04;
+  vector<TH2D*> h2_lep1pt_nVert;
+  vector<TH2D*> h2_pfmet_tkmet;
 
-  TH2D* h2_lep1pt_lep1eta = new TH2D("h2_lep1pt_lep1eta","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_lep1sigIetaIeta = new TH2D("h2_lep1pt_lep1sigIetaIeta","",28,24,80, 25, 0.0, 0.025);
-  TH2D* h2_lep1pt_lep1r9 = new TH2D("h2_lep1pt_lep1r9","",28,24,80, 55, 0.0, 1.1);
-  TH2D* h2_lep1pt_pfmet = new TH2D("h2_lep1pt_pfmet","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet = new TH2D("h2_lep1pt_tkmet","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt = new TH2D("h2_lep1pt_bosonPt","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03 = new TH2D("h2_lep1pt_lep1relIso03","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04 = new TH2D("h2_lep1pt_lep1relIso04","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // histograms binned in eta
+  vector<Double_t> etaBinEdges_double;
+  vector<string> etaBinEdges_str;
+  if (isMuon) {
+    for (UInt_t i = 0; i < muEtaBinEdges_double.size(); i++) {
+      etaBinEdges_str.push_back( getStringFromDouble(muEtaBinEdges_double[i]) );
+      etaBinEdges_double.push_back(muEtaBinEdges_double[i]);
+    }
+  } else {
+    for (UInt_t i = 0; i < eleEtaBinEdges_double.size(); i++) {
+      etaBinEdges_str.push_back( getStringFromDouble(eleEtaBinEdges_double[i]) );
+      etaBinEdges_double.push_back(eleEtaBinEdges_double[i]);
+    }
+  }
 
-  TH1D* hlep1relIso03_noIsoCut = new TH1D("hlep1relIso03_noIsoCut","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso03_noIsoCut = new TH2D("h2_mT_lep1relIso03_noIsoCut","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut","",28,24,80, 100,0.0,0.5);
-  TH1D* hlep1relIso04_noIsoCut = new TH1D("hlep1relIso04_noIsoCut","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso04_noIsoCut = new TH2D("h2_mT_lep1relIso04_noIsoCut","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut","",28,24,80, 100,0.0,0.5);
+  vector< vector<TH1D*> > hmT_lepEtaBin(2);
+  vector< vector<TH1D*> > hlep1pt_lepEtaBin(2);
 
-  TH1D* hlep1miniRelIso_noIsoCut = new TH1D("hlep1miniRelIso_noIsoCut","",50,0.0,0.25);
-  TH2D* h2_lep1pt_lep1miniRelIso_noIsoCut = new TH2D("h2_lep1pt_lep1miniRelIso_noIsoCut","",28,24,80, 50, 0.0, 0.25);
-  TH2D* h2_mT_lep1miniRelIso_noIsoCut = new TH2D("h2_mT_lep1miniRelIso_noIsoCut","",nMtBins, mtMin, mtMax, 50, 0.0, 0.25);
+  vector<string> charge = {"pos", "neg"};
 
+  // TH1
+  for (Int_t icharge = 0; icharge < 2 ; icharge++) {
+
+    // TH1
+    hmT.push_back( new TH1D(Form("hmT_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax) );
+    hmT2over4.push_back( new TH1D(Form("hmT2over4_%s",charge[icharge].c_str()),"",nMt2over4Bins, mt2over4Min, mt2over4Max) );
+    hpfmet.push_back( new TH1D(Form("hpfmet_%s",charge[icharge].c_str()),"",60,0,300) );
+    htkmet.push_back( new TH1D(Form("htkmet_%s",charge[icharge].c_str()),"",60,0,300) );
+    hlep1pt.push_back( new TH1D(Form("hlep1pt_%s",charge[icharge].c_str()),"",112,24,80) );  //60, 0, 300
+    hlep1pt2.push_back( new TH1D(Form("hlep1pt2_%s",charge[icharge].c_str()),"",125,500,3000) );
+    hlep1eta.push_back( new TH1D(Form("hlep1eta_%s",charge[icharge].c_str()),"",48,-2.4,2.4) );  //60, 0, 300
+    hlep2pt.push_back( new TH1D(Form("hlep2pt_%s",charge[icharge].c_str()),"",40,0,80) );
+    hbosonpt.push_back( new TH1D(Form("hbosonpt_%s",charge[icharge].c_str()),"",40,0,40) );
+    hlep1relIso04.push_back( new TH1D(Form("hlep1relIso04_%s",charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
+    hlep1relIso04_noCut.push_back( new TH1D(Form("hlep1relIso04_noCut_%s",charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
+    hrecoil.push_back( new TH1D(Form("hrecoil_%s",charge[icharge].c_str()),"",40,0,40) );
+    hdxy.push_back( new TH1D(Form("hdxy_%s",charge[icharge].c_str()),"",40,0,0.1) );
+    hdphiLepMet.push_back( new TH1D(Form("hdphiLepMet_%s",charge[icharge].c_str()),"",32,0,3.2) );
+    hnVert.push_back( new TH1D(Form("hnVert_%s",charge[icharge].c_str()),"",50,0.5,50.5) );
+    hrho.push_back( new TH1D(Form("hrho_%s",charge[icharge].c_str()),"",100,0,50) );
+
+    for (UInt_t ibin = 0; ibin < etaBinEdges_str.size() -1; ibin++) {
+      hmT_lepEtaBin[icharge].push_back(new TH1D(Form("hmT_etaBin%sTo%s_%s",
+						     etaBinEdges_str[ibin].c_str(),
+						     etaBinEdges_str[ibin+1].c_str(),
+						     charge[icharge].c_str()),
+						"",nMtBins, mtMin, mtMax));
+      hlep1pt_lepEtaBin[icharge].push_back(new TH1D(Form("hlep1pt_etaBin%sTo%s_%s",
+							 etaBinEdges_str[ibin].c_str(),
+							 etaBinEdges_str[ibin+1].c_str(),
+							 charge[icharge].c_str()),
+						    "", 112,24,80));
+    }
+
+    //TH2
+    h2_mT_lep1pt.push_back( new TH2D(Form("h2_mT_lep1pt_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 112,24,80) );
+    h2_mT_lep1eta.push_back( new TH2D(Form("h2_mT_lep1eta_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 48, -2.4, 2.4) );
+    h2_mT_pfmet.push_back( new TH2D(Form("h2_mT_pfmet_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 60,0,300) );
+    h2_mT_tkmet.push_back( new TH2D(Form("h2_mT_tkmet_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 60,0,300) );
+    h2_mT_bosonPt.push_back( new TH2D(Form("h2_mT_bosonPt_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 30,0,30) );
+    h2_mT_lep1relIso04.push_back( new TH2D(Form("h2_mT_lep1relIso04_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04) );
+    h2_mT_nVert.push_back( new TH2D(Form("h2_mT_nVert_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 50, 0.5, 50.5) );
+    h2_lep1pt_lep1eta.push_back( new TH2D(Form("h2_lep1pt_lep1eta_%s",charge[icharge].c_str()),"",112,24,80, 48, -2.4, 2.4) );
+    h2_lep1pt_pfmet.push_back( new TH2D(Form("h2_lep1pt_pfmet_%s",charge[icharge].c_str()),"",112,24,80, 60,0,300) );
+    h2_lep1pt_tkmet.push_back( new TH2D(Form("h2_lep1pt_tkmet_%s",charge[icharge].c_str()),"",112,24,80, 60,0,300) );
+    h2_lep1pt_bosonPt.push_back( new TH2D(Form("h2_lep1pt_bosonPt_%s",charge[icharge].c_str()),"",112,24,80, 30,0,30) );
+    h2_lep1pt_lep1relIso04.push_back( new TH2D(Form("h2_lep1pt_lep1relIso04_%s",charge[icharge].c_str()),"",112,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04) );
+    h2_lep1pt_nVert.push_back( new TH2D(Form("h2_lep1pt_nVert_%s",charge[icharge].c_str()),"",112,24,80, 50,0.5,50.5) );
+    h2_pfmet_tkmet.push_back( new TH2D(Form("h2_pfmet_tkmet_%s",charge[icharge].c_str()),"",60,0,300, 60,0,300) );
+
+
+  }
+
+
+  // histograms with mass weights
+  // vector<TH1D*> hmT_mw;
+  // vector<TH1D*> hlep1pt_mw;
+  if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
+    //////////////////////////////////////////////////////
+    // must read the tree at least once to get nWMassSteps
+    //////////////////////////////////////////////////////
+    // TTreeReader reader_tmp (chain);
+    // TTreeReaderValue<Int_t> nWMassSteps_tmp(reader_tmp, "nWMassSteps"); // number of weights, not used, value chosen by user and put in nMassWeights
+    // long int nEvents_tmp = 0;
+    // while(reader_tmp.Next() && nEvents_tmp == 0){
+    //   nMassWeights = *nWMassSteps_tmp;
+    //   nEvents_tmp++;
+    // }
+    // for (Int_t im = 0; im < nMassWeights; im++) {
+    //   hmT_mw.push_back(new TH1D(Form("hmT_mw_%d",im),"",nMtBins, mtMin, mtMax));
+    //   hlep1pt_mw.push_back(new TH1D(Form("hlep1pt_mw_%d",im),"",112,24,80));
+    // }
+  }
+  
+
+  ////////////////////////////////
+  // electron specific histograms
+  ////////////////////////////////
+  // TH1D* hlep1sigIetaIeta = NULL;
+  // TH1D* hlep1r9 = NULL;
+  // TH2D* h2_mT_lep1sigIetaIeta = NULL;
+  // TH2D* h2_mT_lep1r9 = NULL;
+  // TH2D* h2_lep1pt_lep1sigIetaIeta = NULL;
+  // TH2D* h2_lep1pt_lep1r9 = NULL;
+  // TH2D* h2_mT_detaIn = NULL;
+  // TH2D* h2_mT_dphiIn = NULL;
+  // TH2D* h2_lep1pt_detaIn = NULL;
+  // TH2D* h2_lep1pt_dphiIn = NULL;
+  // TH1D* hdetaIn = NULL;
+  // TH1D* hdphiIn = NULL;
+  // TH1D* hdetaIn_noCut = NULL;
+  // TH1D* hdphiIn_noCut = NULL;
+  // TH1D* hdetaIn_noCutDphiDeta = NULL;
+  // TH1D* hdphiIn_noCutDphiDeta = NULL;
+  // TH1D* hpfmet_noCutDphiDeta = NULL;
+  // TH1D* hmT_noCutDphiDeta = NULL;
+  // TH1D* hlep1pt_noCutDphiDeta = NULL;
+  // TH1D* hmT_noCutIsoDphiDeta = NULL;
+  // TH1D* hlep1pt_noCutIsoDphiDeta = NULL;
+
+  // if (not isMuon) {
+  //   hlep1sigIetaIeta = new TH1D("hlep1sigIetaIeta","",25, 0.0, 0.025);
+  //   hlep1r9 = new TH1D("hlep1r9","", 55, 0.0, 1.1);
+  //   h2_mT_lep1sigIetaIeta = new TH2D("h2_mT_lep1sigIetaIeta","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
+  //   h2_mT_lep1r9 = new TH2D("h2_mT_lep1r9","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
+  //   h2_lep1pt_lep1sigIetaIeta = new TH2D("h2_lep1pt_lep1sigIetaIeta","",112,24,80, 25, 0.0, 0.025);
+  //   h2_lep1pt_lep1r9 = new TH2D("h2_lep1pt_lep1r9","",112,24,80, 55, 0.0, 1.1);
+  //   h2_mT_detaIn = new TH2D("h2_mT_detaIn","",nMtBins, mtMin, mtMax, 30,0.0,0.030);
+  //   h2_mT_dphiIn = new TH2D("h2_mT_dphiIn","",nMtBins, mtMin, mtMax, 60,0.0,0.30);
+  //   h2_lep1pt_detaIn = new TH2D("h2_lep1pt_detaIn","",112,24,80, 30,0.0,0.030);
+  //   h2_lep1pt_dphiIn = new TH2D("h2_lep1pt_dphiIn","",112,24,80, 60,0.0,0.30);
+  //   hdetaIn = new TH1D("hdetaIn","",30,0.0,0.030);
+  //   hdphiIn = new TH1D("hdphiIn","",60,0.0,0.30);
+  //   hdetaIn_noCut = new TH1D("hdetaIn_noCut","",30,0.0,0.030);
+  //   hdphiIn_noCut = new TH1D("hdphiIn_noCut","",60,0.0,0.30);
+  //   hdetaIn_noCutDphiDeta = new TH1D("hdetaIn_noCutDphiDeta","",30,0.0,0.030);
+  //   hdphiIn_noCutDphiDeta = new TH1D("hdphiIn_noCutDphiDeta","",60,0.0,0.30);
+  //   hpfmet_noCutDphiDeta = new TH1D("hpfmet_noCutDphiDeta","",60,0,300);
+  //   hmT_noCutDphiDeta = new TH1D("hmT_noCutDphiDeta","",nMtBins, mtMin, mtMax);
+  //   hlep1pt_noCutDphiDeta = new TH1D("hlep1pt_noCutDphiDeta","",112,24,80);
+  //   hmT_noCutIsoDphiDeta = new TH1D("hmT_noCutIsoDphiDeta","",nMtBins, mtMin, mtMax);
+  //   hlep1pt_noCutIsoDphiDeta = new TH1D("hlep1pt_noCutIsoDphiDeta","",112,24,80);
+  //   // hdxy_noCut = new TH1D("hdxy_noCut","",20,0.0,0.05);
+  //   // h2_mT_detaIn_noCut = new TH2D("h2_mT_detaIn_noCut","",nMtBins, mtMin, mtMax, 30,0.0,0.03);
+  //   // h2_mT_dphiIn_noCut = new TH2D("h2_mT_dphiIn_noCut","",nMtBins, mtMin, mtMax, 60,0.0,0.30);
+  //   // h2_mT_dxy_noCut = new TH2D("h2_mT_dxy_noCut","",nMtBins, mtMin, mtMax, 20,0.0,0.05);
+  //   // h2_lep1pt_detaIn_noCut = new TH2D("h2_lep1pt_detaIn_noCut","",112,24,80, 30,0.0,0.030);
+  //   // h2_lep1pt_dphiIn_noCut = new TH2D("h2_lep1pt_dphiIn_noCut","",112,24,80, 60,0.0,0.30);
+  //   // h2_lep1pt_dxy_noCut = new TH2D("h2_lep1pt_dxy_noCut","",112,24,80, 20,0.0,0.05);
+  // }
+  ///////////////////////////////////
 
   /////////////////////////////////
   // only for positive lepton
-  TH1D* hmT_plus = new TH1D("hmT_plus","",nMtBins, mtMin, mtMax);
-  TH1D* hpfmet_plus = new TH1D("hpfmet_plus","",60,0,300);
-  TH1D* htkmet_plus = new TH1D("htkmet_plus","",60,0,300);
-  TH1D* hlep1pt_plus = new TH1D("hlep1pt_plus","",28,24,80);  //60, 0, 300
-  TH1D* hlep2pt_plus = new TH1D("hlep2pt_plus","",35,10,80);
-  TH1D* hbosonpt_plus = new TH1D("hbosonpt_plus","",30,0,30);
-  TH1D* hbosonpt_wlike_plus = new TH1D("hbosonpt_wlike_plus","",30,0,30);
-  TH1D* hbosoneta_plus = new TH1D("hbosoneta_plus","",100,-5,5);
-  TH1D* hlep1sigIetaIeta_plus = new TH1D("hlep1sigIetaIeta_plus","",25, 0.0, 0.025);
-  TH1D* hlep1relIso03_plus = new TH1D("hlep1relIso03_plus","",nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH1D* hlep1relIso04_plus = new TH1D("hlep1relIso04_plus","",nBins_lepIso04,min_lepIso04,max_lepIso04);
-  TH1D* hlep1miniRelIso_plus = new TH1D("hlep1miniRelIso_plus","",nBins_miniRelIso, min_miniRelIso, max_miniRelIso);
-  TH1D* hlep1r9_plus = new TH1D("hlep1r9_plus","", 55, 0.0, 1.1);
-  TH1D* hrecoil_plus = new TH1D("hrecoil_plus","",30,0,30);
+  // TH1D* hmT_plus = new TH1D("hmT_plus","",nMtBins, mtMin, mtMax);
+  // TH1D* hmT2over4_plus = new TH1D("hmT2over4_plus","",nMt2over4Bins, mt2over4Min, mt2over4Max);
+  // TH1D* hpfmet_plus = new TH1D("hpfmet_plus","",60,0,300);
+  // TH1D* htkmet_plus = new TH1D("htkmet_plus","",60,0,300);
+  // TH1D* hlep1pt_plus = new TH1D("hlep1pt_plus","",112,24,80);  //60, 0, 300
+  // TH1D* hlep1pt2_plus = new TH1D("hlep1pt2_plus","",125,500,3000);
+  // TH1D* hlep1eta_plus = new TH1D("hlep1eta_plus","",48,-2.4,2.4);  //60, 0, 300
+  // TH1D* hlep2pt_plus = new TH1D("hlep2pt_plus","",35,10,80);
+  // TH1D* hbosonpt_plus = new TH1D("hbosonpt_plus","",30,0,30);
+  // //TH1D* hbosoneta_plus = new TH1D("hbosoneta_plus","",100,-5,5);
+  // TH1D* hlep1sigIetaIeta_plus = new TH1D("hlep1sigIetaIeta_plus","",25, 0.0, 0.025);
+  // TH1D* hlep1relIso03_plus = new TH1D("hlep1relIso03_plus","",nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH1D* hlep1relIso04_plus = new TH1D("hlep1relIso04_plus","",nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH1D* hlep1r9_plus = new TH1D("hlep1r9_plus","", 55, 0.0, 1.1);
+  // TH1D* hrecoil_plus = new TH1D("hrecoil_plus","",30,0,30);
+  // TH1D* hdxy_plus = new TH1D("hdxy_plus","",20,0,0.1);
+  // TH1D* hdphiLepMet_plus = new TH1D("hdphiLepMet_plus","",32,0,3.2);
 
-  TH2D* h2_mT_lep1pt_plus = new TH2D("h2_mT_lep1pt_plus","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta_plus = new TH2D("h2_mT_lep1eta_plus","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
-  TH2D* h2_mT_lep1sigIetaIeta_plus = new TH2D("h2_mT_lep1sigIetaIeta_plus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
-  TH2D* h2_mT_lep1r9_plus = new TH2D("h2_mT_lep1r9_plus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
-  TH2D* h2_mT_pfmet_plus = new TH2D("h2_mT_pfmet_plus","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_tkmet_plus = new TH2D("h2_mT_tkmet_plus","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_bosonPt_plus = new TH2D("h2_mT_bosonPt_plus","",nMtBins, mtMin, mtMax, 30,0,30);
-  TH2D* h2_mT_lep1relIso03_plus = new TH2D("h2_mT_lep1relIso03_plus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_mT_lep1relIso04_plus = new TH2D("h2_mT_lep1relIso04_plus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH2D* h2_mT_lep1pt_plus = new TH2D("h2_mT_lep1pt_plus","",nMtBins, mtMin, mtMax, 112,24,80);
+  // TH2D* h2_mT_lep1eta_plus = new TH2D("h2_mT_lep1eta_plus","",nMtBins, mtMin, mtMax, 48, -2.4, 2.4);
+  // TH2D* h2_mT_lep1sigIetaIeta_plus = new TH2D("h2_mT_lep1sigIetaIeta_plus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
+  // TH2D* h2_mT_lep1r9_plus = new TH2D("h2_mT_lep1r9_plus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
+  // TH2D* h2_mT_pfmet_plus = new TH2D("h2_mT_pfmet_plus","",nMtBins, mtMin, mtMax, 60,0,300);
+  // TH2D* h2_mT_tkmet_plus = new TH2D("h2_mT_tkmet_plus","",nMtBins, mtMin, mtMax, 60,0,300);
+  // TH2D* h2_mT_bosonPt_plus = new TH2D("h2_mT_bosonPt_plus","",nMtBins, mtMin, mtMax, 30,0,30);
+  // TH2D* h2_mT_lep1relIso03_plus = new TH2D("h2_mT_lep1relIso03_plus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH2D* h2_mT_lep1relIso04_plus = new TH2D("h2_mT_lep1relIso04_plus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH2D* h2_lep1pt_lep1eta_plus = new TH2D("h2_lep1pt_lep1eta_plus","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_lep1sigIetaIeta_plus = new TH2D("h2_lep1pt_lep1sigIetaIeta_plus","",28,24,80, 25, 0.0, 0.025);
-  TH2D* h2_lep1pt_lep1r9_plus = new TH2D("h2_lep1pt_lep1r9_plus","",28,24,80, 55, 0.0, 1.1);
-  TH2D* h2_lep1pt_pfmet_plus = new TH2D("h2_lep1pt_pfmet_plus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet_plus = new TH2D("h2_lep1pt_tkmet_plus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt_plus = new TH2D("h2_lep1pt_bosonPt_plus","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03_plus = new TH2D("h2_lep1pt_lep1relIso03_plus","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04_plus = new TH2D("h2_lep1pt_lep1relIso04_plus","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH2D* h2_lep1pt_lep1eta_plus = new TH2D("h2_lep1pt_lep1eta_plus","",112,24,80, 48, -2.4, 2.4);
+  // TH2D* h2_lep1pt_lep1sigIetaIeta_plus = new TH2D("h2_lep1pt_lep1sigIetaIeta_plus","",112,24,80, 25, 0.0, 0.025);
+  // TH2D* h2_lep1pt_lep1r9_plus = new TH2D("h2_lep1pt_lep1r9_plus","",112,24,80, 55, 0.0, 1.1);
+  // TH2D* h2_lep1pt_pfmet_plus = new TH2D("h2_lep1pt_pfmet_plus","",112,24,80, 60,0,300);
+  // TH2D* h2_lep1pt_tkmet_plus = new TH2D("h2_lep1pt_tkmet_plus","",112,24,80, 60,0,300);
+  // TH2D* h2_lep1pt_bosonPt_plus = new TH2D("h2_lep1pt_bosonPt_plus","",112,24,80, 30,0,30);
+  // TH2D* h2_lep1pt_lep1relIso03_plus = new TH2D("h2_lep1pt_lep1relIso03_plus","",112,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH2D* h2_lep1pt_lep1relIso04_plus = new TH2D("h2_lep1pt_lep1relIso04_plus","",112,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH1D* hlep1relIso03_noIsoCut_plus = new TH1D("hlep1relIso03_noIsoCut_plus","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso03_noIsoCut_plus = new TH2D("h2_mT_lep1relIso03_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_plus","",28,24,80, 100,0.0,0.5);
-  TH1D* hlep1relIso04_noIsoCut_plus = new TH1D("hlep1relIso04_noIsoCut_plus","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso04_noIsoCut_plus = new TH2D("h2_mT_lep1relIso04_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_plus","",28,24,80, 100,0.0,0.5);
+  // TH1D* hlep1relIso03_noIsoCut_plus = new TH1D("hlep1relIso03_noIsoCut_plus","",100,0.0,0.5);
+  // TH2D* h2_mT_lep1relIso03_noIsoCut_plus = new TH2D("h2_mT_lep1relIso03_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
+  // TH2D* h2_lep1pt_lep1relIso03_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_plus","",112,24,80, 100,0.0,0.5);
+  // TH1D* hlep1relIso04_noIsoCut_plus = new TH1D("hlep1relIso04_noIsoCut_plus","",100,0.0,0.5);
+  // TH2D* h2_mT_lep1relIso04_noIsoCut_plus = new TH2D("h2_mT_lep1relIso04_noIsoCut_plus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
+  // TH2D* h2_lep1pt_lep1relIso04_noIsoCut_plus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_plus","",112,24,80, 100,0.0,0.5);
 
-  ///////////////////////////////
-  // negative lepton
-  TH1D* hmT_minus = new TH1D("hmT_minus","",nMtBins, mtMin, mtMax);
-  TH1D* hpfmet_minus = new TH1D("hpfmet_minus","",60,0,300);
-  TH1D* htkmet_minus = new TH1D("htkmet_minus","",60,0,300);
-  TH1D* hlep1pt_minus = new TH1D("hlep1pt_minus","",28,24,80);  //60, 0, 300
-  TH1D* hlep2pt_minus = new TH1D("hlep2pt_minus","",35,10,80);
-  TH1D* hbosonpt_minus = new TH1D("hbosonpt_minus","",30,0,30);
-  TH1D* hbosonpt_wlike_minus = new TH1D("hbosonpt_wlike_minus","",30,0,30);
-  TH1D* hbosoneta_minus = new TH1D("hbosoneta_minus","",100,-5,5);
-  TH1D* hlep1sigIetaIeta_minus = new TH1D("hlep1sigIetaIeta_minus","",25, 0.0, 0.025);
-  TH1D* hlep1relIso03_minus = new TH1D("hlep1relIso03_minus","",nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH1D* hlep1relIso04_minus = new TH1D("hlep1relIso04_minus","",nBins_lepIso04,min_lepIso04,max_lepIso04);
-  TH1D* hlep1miniRelIso_minus = new TH1D("hlep1miniRelIso_minus","",nBins_miniRelIso, min_miniRelIso, max_miniRelIso);
-  TH1D* hlep1r9_minus = new TH1D("hlep1r9_minus","", 55, 0.0, 1.1);
-  TH1D* hrecoil_minus = new TH1D("hrecoil_minus","",30,0,30);
+  // ///////////////////////////////
+  // // negative lepton
+  // TH1D* hmT_minus = new TH1D("hmT_minus","",nMtBins, mtMin, mtMax);
+  // TH1D* hmT2over4_minus = new TH1D("hmT2over4_minus","",nMt2over4Bins, mt2over4Min, mt2over4Max);
+  // TH1D* hpfmet_minus = new TH1D("hpfmet_minus","",60,0,300);
+  // TH1D* htkmet_minus = new TH1D("htkmet_minus","",60,0,300);
+  // TH1D* hlep1pt_minus = new TH1D("hlep1pt_minus","",112,24,80);  //60, 0, 300
+  // TH1D* hlep1pt2_minus = new TH1D("hlep1pt2_minus","",125,500,3000);
+  // TH1D* hlep1eta_minus = new TH1D("hlep1eta_minus","",48,-2.4,2.4);  //60, 0, 300
+  // TH1D* hlep2pt_minus = new TH1D("hlep2pt_minus","",35,10,80);
+  // TH1D* hbosonpt_minus = new TH1D("hbosonpt_minus","",30,0,30);
+  // //TH1D* hbosoneta_minus = new TH1D("hbosoneta_minus","",100,-5,5);
+  // TH1D* hlep1sigIetaIeta_minus = new TH1D("hlep1sigIetaIeta_minus","",25, 0.0, 0.025);
+  // TH1D* hlep1relIso03_minus = new TH1D("hlep1relIso03_minus","",nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH1D* hlep1relIso04_minus = new TH1D("hlep1relIso04_minus","",nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH1D* hlep1r9_minus = new TH1D("hlep1r9_minus","", 55, 0.0, 1.1);
+  // TH1D* hrecoil_minus = new TH1D("hrecoil_minus","",30,0,30);
+  // TH1D* hdxy_minus = new TH1D("hdxy_minus","",20,0,0.1);
+  // TH1D* hdphiLepMet_minus = new TH1D("hdphiLepMet_minus","",32,0,3.2);
 
-  TH2D* h2_mT_lep1pt_minus = new TH2D("h2_mT_lep1pt_minus","",nMtBins, mtMin, mtMax, 28,24,80);
-  TH2D* h2_mT_lep1eta_minus = new TH2D("h2_mT_lep1eta_minus","",nMtBins, mtMin, mtMax, 30, -1.5, 1.5);
-  TH2D* h2_mT_lep1sigIetaIeta_minus = new TH2D("h2_mT_lep1sigIetaIeta_minus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
-  TH2D* h2_mT_lep1r9_minus = new TH2D("h2_mT_lep1r9_minus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
-  TH2D* h2_mT_pfmet_minus = new TH2D("h2_mT_pfmet_minus","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_tkmet_minus = new TH2D("h2_mT_tkmet_minus","",nMtBins, mtMin, mtMax, 60,0,300);
-  TH2D* h2_mT_bosonPt_minus = new TH2D("h2_mT_bosonPt_minus","",nMtBins, mtMin, mtMax, 30,0,30);
-  TH2D* h2_mT_lep1relIso03_minus = new TH2D("h2_mT_lep1relIso03_minus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_mT_lep1relIso04_minus = new TH2D("h2_mT_lep1relIso04_minus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH2D* h2_mT_lep1pt_minus = new TH2D("h2_mT_lep1pt_minus","",nMtBins, mtMin, mtMax, 112,24,80);
+  // TH2D* h2_mT_lep1eta_minus = new TH2D("h2_mT_lep1eta_minus","",nMtBins, mtMin, mtMax, 48, -2.4, 2.4);
+  // TH2D* h2_mT_lep1sigIetaIeta_minus = new TH2D("h2_mT_lep1sigIetaIeta_minus","",nMtBins, mtMin, mtMax, 25, 0.0, 0.025);
+  // TH2D* h2_mT_lep1r9_minus = new TH2D("h2_mT_lep1r9_minus","",nMtBins, mtMin, mtMax, 55, 0.0, 1.1);
+  // TH2D* h2_mT_pfmet_minus = new TH2D("h2_mT_pfmet_minus","",nMtBins, mtMin, mtMax, 60,0,300);
+  // TH2D* h2_mT_tkmet_minus = new TH2D("h2_mT_tkmet_minus","",nMtBins, mtMin, mtMax, 60,0,300);
+  // TH2D* h2_mT_bosonPt_minus = new TH2D("h2_mT_bosonPt_minus","",nMtBins, mtMin, mtMax, 30,0,30);
+  // TH2D* h2_mT_lep1relIso03_minus = new TH2D("h2_mT_lep1relIso03_minus","",nMtBins, mtMin, mtMax, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH2D* h2_mT_lep1relIso04_minus = new TH2D("h2_mT_lep1relIso04_minus","",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH2D* h2_lep1pt_lep1eta_minus = new TH2D("h2_lep1pt_lep1eta_minus","",28,24,80, 30, -1.5, 1.5);
-  TH2D* h2_lep1pt_lep1sigIetaIeta_minus = new TH2D("h2_lep1pt_lep1sigIetaIeta_minus","",28,24,80, 25, 0.0, 0.025);
-  TH2D* h2_lep1pt_lep1r9_minus = new TH2D("h2_lep1pt_lep1r9_minus","",28,24,80, 55, 0.0, 1.1);
-  TH2D* h2_lep1pt_pfmet_minus = new TH2D("h2_lep1pt_pfmet_minus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_tkmet_minus = new TH2D("h2_lep1pt_tkmet_minus","",28,24,80, 60,0,300);
-  TH2D* h2_lep1pt_bosonPt_minus = new TH2D("h2_lep1pt_bosonPt_minus","",28,24,80, 30,0,30);
-  TH2D* h2_lep1pt_lep1relIso03_minus = new TH2D("h2_lep1pt_lep1relIso03_minus","",28,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
-  TH2D* h2_lep1pt_lep1relIso04_minus = new TH2D("h2_lep1pt_lep1relIso04_minus","",28,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
+  // TH2D* h2_lep1pt_lep1eta_minus = new TH2D("h2_lep1pt_lep1eta_minus","",112,24,80, 48, -2.4, 2.4);
+  // TH2D* h2_lep1pt_lep1sigIetaIeta_minus = new TH2D("h2_lep1pt_lep1sigIetaIeta_minus","",112,24,80, 25, 0.0, 0.025);
+  // TH2D* h2_lep1pt_lep1r9_minus = new TH2D("h2_lep1pt_lep1r9_minus","",112,24,80, 55, 0.0, 1.1);
+  // TH2D* h2_lep1pt_pfmet_minus = new TH2D("h2_lep1pt_pfmet_minus","",112,24,80, 60,0,300);
+  // TH2D* h2_lep1pt_tkmet_minus = new TH2D("h2_lep1pt_tkmet_minus","",112,24,80, 60,0,300);
+  // TH2D* h2_lep1pt_bosonPt_minus = new TH2D("h2_lep1pt_bosonPt_minus","",112,24,80, 30,0,30);
+  // TH2D* h2_lep1pt_lep1relIso03_minus = new TH2D("h2_lep1pt_lep1relIso03_minus","",112,24,80, nBins_lepIso03,min_lepIso03,max_lepIso03);
+  // TH2D* h2_lep1pt_lep1relIso04_minus = new TH2D("h2_lep1pt_lep1relIso04_minus","",112,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04);
 
-  TH1D* hlep1relIso03_noIsoCut_minus = new TH1D("hlep1relIso03_noIsoCut_minus","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso03_noIsoCut_minus = new TH2D("h2_mT_lep1relIso03_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso03_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_minus","",28,24,80, 100,0.0,0.5);
-  TH1D* hlep1relIso04_noIsoCut_minus = new TH1D("hlep1relIso04_noIsoCut_minus","",100,0.0,0.5);
-  TH2D* h2_mT_lep1relIso04_noIsoCut_minus = new TH2D("h2_mT_lep1relIso04_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
-  TH2D* h2_lep1pt_lep1relIso04_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_minus","",28,24,80, 100,0.0,0.5);
+  // TH1D* hlep1relIso03_noIsoCut_minus = new TH1D("hlep1relIso03_noIsoCut_minus","",100,0.0,0.5);
+  // TH2D* h2_mT_lep1relIso03_noIsoCut_minus = new TH2D("h2_mT_lep1relIso03_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
+  // TH2D* h2_lep1pt_lep1relIso03_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso03_noIsoCut_minus","",112,24,80, 100,0.0,0.5);
+  // TH1D* hlep1relIso04_noIsoCut_minus = new TH1D("hlep1relIso04_noIsoCut_minus","",100,0.0,0.5);
+  // TH2D* h2_mT_lep1relIso04_noIsoCut_minus = new TH2D("h2_mT_lep1relIso04_noIsoCut_minus","",nMtBins, mtMin, mtMax,100,0.0,0.5);
+  // TH2D* h2_lep1pt_lep1relIso04_noIsoCut_minus = new TH2D("h2_lep1pt_lep1relIso04_noIsoCut_minus","",112,24,80, 100,0.0,0.5);
 
-  // start event loop                                                                                                                                                       
+  ////////////////////
+  ////////////////////
+  // get recoil correction histogram as a function of boson pT  
+  ////////////////////
+  string recoilCorrFileName = "";
+  TFile* recoilCorrFile = NULL;
+  TH1D* hRecoilCorrectionTkmet = NULL;
+  TH1D* hRecoilCorrectionPfmet = NULL;
+
+  if (correctRecoilResponse) {
+
+    recoilCorrFileName = recoilCorrectionsPathToFile;
+    if (isMuon) recoilCorrFileName += "Zmumu/";
+    else recoilCorrFileName += "Zee/";
+    recoilCorrFileName += "wmass_resoresphists.root";
+
+    recoilCorrFile = new TFile(recoilCorrFileName.c_str(),"READ");
+    if (!recoilCorrFile || recoilCorrFile->IsZombie()) {
+      cout << "Error: file with recoil corrections not opened. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+
+    if (sampleDir.find("data") != string::npos) hRecoilCorrectionTkmet = (TH1D*) getHistCloneFromFile(recoilCorrFile, "hRecoilResponseCorrFactor_tkmet_data", ""); 
+    else hRecoilCorrectionTkmet = (TH1D*) getHistCloneFromFile(recoilCorrFile, "hRecoilResponseCorrFactor_tkmet_zjets", "");
+
+    if (sampleDir.find("data") != string::npos) hRecoilCorrectionPfmet= (TH1D*) getHistCloneFromFile(recoilCorrFile, "hRecoilResponseCorrFactor_pfmet_data", ""); 
+    else hRecoilCorrectionPfmet = (TH1D*) getHistCloneFromFile(recoilCorrFile, "hRecoilResponseCorrFactor_pfmet_zjets", "");
+
+    checkNotNullPtr(hRecoilCorrectionTkmet,"hRecoilCorrectionTkmet");
+    checkNotNullPtr(hRecoilCorrectionPfmet,"hRecoilCorrectionPfmet");
+    
+  }
+  ////////////////////
+  ////////////////////
+
+
+  //////////////////////
+  // use fake rate for electrons to estimate QCD
+  //////////////////////
+  TFile* fakeRateFile = NULL;
+  TH2F* h2fakeRate = NULL;
+
+  if (useFakeRateForElectron && (sampleDir.find("qcd_ele_fake") != string::npos)) {
+
+    fakeRateFile = new TFile(eleFakeRateFileName.c_str(),"READ");
+
+    if (!fakeRateFile || fakeRateFile->IsZombie()) {
+      cout << "Error: file with fake rate not opened. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+    h2fakeRate = (TH2F*) getHist2CloneFromFile(fakeRateFile, eleFakeRateHistoName.c_str(), ""); 
+    
+    checkNotNullPtr(h2fakeRate,"h2fakeRate");
+
+  }
+
+  //////////////////////
+  // use fake rate for muons to estimate QCD
+  //////////////////////
+  if (useFakeRateForMuon && (sampleDir.find("qcd_mu_fake") != string::npos)) {
+
+    fakeRateFile = new TFile(muFakeRateFileName.c_str(),"READ");
+
+    if (!fakeRateFile || fakeRateFile->IsZombie()) {
+      cout << "Error: file with fake rate not opened. Exit" << endl;
+      exit(EXIT_FAILURE);
+    }
+    h2fakeRate = (TH2F*) getHist2CloneFromFile(fakeRateFile, muFakeRateHistoName.c_str(), ""); 
+    
+    checkNotNullPtr(h2fakeRate,"h2fakeRate");
+
+  }
+
+  ////////////////////
+  ////////////////////
+
+  // start event loop                                                                                                                     
+                    
   long int nTotal = chain->GetEntries();
   long int nEvents = 0;
 
-  Double_t metToUse_pt = 0.0;
-  Double_t metToUse_phi = 0.0;
-
   Bool_t negativeLeptonHasPassedSelection = false;
   Bool_t positiveLeptonHasPassedSelection = false;
-  
+
+  // flags for electrons to save whether some selection is passed and allow to fill some histograms before only one of these selection is applied
+  Bool_t passDphiSel = false;
+  Bool_t passDetaSel = false;
+  // Bool_t passDxySel = false;
+  Bool_t passIsoSel = false;
+
   Double_t wgt = 1.0;
+  Double_t mT = 0.0;
+  Double_t mT2over4 = 0.0;
+  Double_t lep1pt = 0.0;
+  Double_t lep1pt2 = 0.0;
+  Double_t dphiLepMet = -999.0;
+  Double_t absLep1DetaIn = -1.0;
+  Double_t absLep1DphiIn = -1.0;
+  ////////////////////////////////////////////
+  // to get correct weight depending on sample in chain
+  string currentFile = "";
+  Int_t ifile = 0;
+  ////////////////////
+
+  // cout << "CHECK 7" << endl;
+
 
   while(reader.Next()){
   
     cout.flush();
-    if(nEvents % 100000 == 0) cout<<"\r"<<"Analyzing events "<<double(nEvents)/nTotal*100<<" % ";
+    if(nEvents % CHECK_EVERY_N == 0) cout<<"\r"<<"Analyzing events "<<double(nEvents)/nTotal*100<<" % ";
+    //cout << "entry : " << nEvents << endl;
     nEvents++;
 
-    if (useTrackMet) {
-      metToUse_pt = *tkmet;
-      metToUse_phi = *tkmet_phi;
-    } else {
-      metToUse_pt = *pfmet;
-      metToUse_phi = *pfmet_phi;
-    }
+    // to debug
+    // if (WJetsGenDaughterPdgId == 0) break;
+    // if (nEvents == 1000) break;
+
+    if(dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName() != currentFile and currentFile != ""){ 
+      currentFile = dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName();                   
+      ifile ++;                                                                                      
+    } else if(dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName() != currentFile and currentFile == ""){
+      currentFile = dynamic_cast<TChain*>(reader.GetTree())->GetFile()->GetName();                         
+    }      
 
     negativeLeptonHasPassedSelection = false;
     positiveLeptonHasPassedSelection = false;
-
+    passDphiSel = false;
+    passDetaSel = false;
+    // passDxySel = false;
+    passIsoSel = false;
+  
     // selection
     if (*nlep != 1) continue;    // 1 leptons                                                  
-    if (fabs(lep_pdgId[0]) != chargedLeptonFlavour ) continue;  // electrons                                                     
-    if ( lep_pt[0] < 30.0) continue;
-    if ( fabs(lep_eta[0]) > lepEtaThreshold ) continue; 
-    if ( lep_tightId[0] < lepTightIdThreshold ) continue;   // tight ID
-    if (not isMuon) {
-      if ( lep_hltSafeID[0] != 1 ) continue;  //HLT safe ID for electrons
+    if (fabs(lep_pdgId[0]) != chargedLeptonFlavour) continue;  // electrons                                                     
+    if (lep_pt[0] < 30.0) continue;
+    if (fabs(lep_eta[0]) < lepEtaMinThreshold || fabs(lep_eta[0]) > lepEtaMaxThreshold) continue; 
+
+    // apply gen cut to wjets to separate the 3 leptonic decay channels
+    // if (WJetsGenDaughterPdgId > 0) {
+    //   Bool_t genLepNotFound = true;
+    //   for (Int_t igen = 0; genLepNotFound && igen < **nGenP6StatusThree; igen++) {      
+    // 	if (fabs((*GenP6StatusThree_pdgId)[igen]) == WJetsGenDaughterPdgId && fabs((*GenP6StatusThree_motherId)[igen]) == 24) genLepNotFound = false;
+    // 	//if (not genLepNotFound) cout << "GenP6StatusThree_pdgId " << (*GenP6StatusThree_pdgId)[igen] << endl;
+    //   }
+    //   if (genLepNotFound) continue;
+    // }
+
+    if (WJetsGenDaughterPdgId > 0) {
+      Bool_t genLepNotFound = true;
+      for (Int_t igen = 0; genLepNotFound && igen < **ngenLep; igen++) {      
+    	if (fabs((*genLep_pdgId)[igen]) == WJetsGenDaughterPdgId && fabs((*genLep_motherId)[igen]) == 24) genLepNotFound = false;
+    	//if (not genLepNotFound) cout << "genLep_pdgId " << (*genLep_pdgId)[igen] << endl;
+      }
+      if (genLepNotFound) continue;
     }
-    //if ( *pfmet < 30) continue;    
 
-    if (lep_pdgId[0] > 0) negativeLeptonHasPassedSelection = true;
-    else                                   positiveLeptonHasPassedSelection = true;
+    // remove Z candidate when nlep > 1
+    // if (removeZtaggedEvents) {
+    //   Bool_t isCandidateZJetsEvent = false;
+    //   if (*nlep > 1) {
+    // 	for (Int_t ilep = 1; ilep < *nlep && !isCandidateZJetsEvent; ilep++) {
+    // 	  if ((lep_pdgId[0] + lep_pdgId[ilep]) == 0) {
+    // 	    TLorentzVector lep1, zboson;
+    // 	    lep1.SetPtEtaPhiM(lep_pt[0],lep_eta[0],lep_phi[0], lep_mass[0]) ;
+    // 	    zboson.SetPtEtaPhiM(lep_pt[ilep],lep_eta[ilep],lep_phi[ilep], lep_mass[ilep]);
+    // 	    zboson += lep1;
+    // 	    Double_t zmass = zboson.M();
+    // 	    if (zmass > 80.0 && zmass < 100.0) isCandidateZJetsEvent = true;
+    // 	  }
+    // 	}
+    //   }
+    //   if (isCandidateZJetsEvent) continue;
+    // }
 
-    if (sample == Sample::data_doubleEG) wgt = 1.0;
-    else wgt = intLumi * *puw * *weight;
+    // tight ID
+    // for electron don't cut now on quantities to be inverted to select QCD
 
-    TLorentzVector lep1Reco, lep2Reco, bosonReco, metReco, metWlikeReco, bosonRecoWlike;
+    if (isMuon) {
+
+      if (*HLT_SingleMu == 0) continue;
+      if ( lep_tightId[0] < lepTightIdThreshold ) continue;   // tight ID
+
+    } else {
+
+      //if (*HLT_SingleEl == 0) continue;
+
+      absLep1DetaIn = fabs(lep_detaIn[0]);
+      absLep1DphiIn = fabs(lep_dphiIn[0]);
+      if ( lep_tightId[0] < lepTightIdThreshold ) continue;   // tight ID
+      if ( lep_lostHits[0] > 1 ) continue;
+      if ( lep_convVeto[0] == 0) continue;
+
+    }
+
+    Int_t chargeIndex = 0; // 0 for positive, 1 for negative
+    if (lep_pdgId[0] > 0) {
+      negativeLeptonHasPassedSelection = true;
+      chargeIndex = 1;
+    } else {
+      positiveLeptonHasPassedSelection = true;
+      chargeIndex = 0;
+    }
+
+    if (*isData == 1) wgt = 1.0;
+    else wgt = 1000.0 * intLumi * **genWeight * **xsec * genwgtVec[ifile]; 
+    //else wgt = 1000.0 * intLumi * **xsec * genwgtVec[ifile]; 
+    
+    //else wgt = intLumi * *genWeight * *xsec * genwgtVec[ifile] * **puw * **lepEfficiency; 
+
+    TLorentzVector lep1Reco;
+    TVector2 lep1Reco2D, tkmet2D, pfmet2D, metReco, recoilPfmet, recoilTkmet, recoilReco, bosonReco;
 
     lep1Reco.SetPtEtaPhiM(lep_pt[0],lep_eta[0],lep_phi[0],lep_mass[0]); 
-    metReco.SetPtEtaPhiM(metToUse_pt,0,metToUse_phi,0);
-    metWlikeReco = metReco;
-    lep2Reco = metWlikeReco;
-
-    Double_t leptonIso03toUse = useAbsIso ? (lep_relIso03[0] * lep1Reco.Pt()) : lep_relIso03[0];
-    Double_t leptonIso04toUse = useAbsIso ? (lep_relIso04[0] * lep1Reco.Pt()) : lep_relIso04[0];
-    Double_t leptonIso03threshold = (fabs(lep_etaSc[0]) < 1.479) ? eleIso03thrEB : eleIso03thrEE;
-    Double_t leptonIso04threshold = muIso04thr;
-    Double_t leptonIso03threshold_QCD = eleIso03thr_QCD;
-    Double_t leptonIso04threshold_QCD = muIso04thr_QCD;
-    if (useAbsIso) {
-      // multiply by 40 (average lepton pT in GeV, when lepton comes from a W decay almost at rest)
-      leptonIso03threshold = leptonIso03threshold * relToAbsIsoFactor;
-      leptonIso04threshold = leptonIso04threshold * relToAbsIsoFactor;
-      leptonIso03threshold_QCD = leptonIso03threshold_QCD * relToAbsIsoFactor;
-      leptonIso04threshold_QCD = leptonIso04threshold_QCD * relToAbsIsoFactor;
+    lep1pt = lep1Reco.Pt();
+    lep1Reco2D = lep1Reco.Vect().XYvector();
+    tkmet2D.SetMagPhi(*tkmet,*tkmet_phi);
+    recoilTkmet = -1.0 * (lep1Reco2D + tkmet2D);
+    pfmet2D.SetMagPhi(*pfmet,*pfmet_phi);
+    recoilPfmet = -1.0 * (lep1Reco2D + pfmet2D);
+    if (useTrackMet) {
+      metReco = tkmet2D;
+      recoilReco = recoilTkmet;
+    } else {
+      metReco = pfmet2D;
+      recoilReco = recoilPfmet;
     }
-    
-    bosonReco = lep1Reco + metWlikeReco;
-    bosonRecoWlike = lep1Reco + metWlikeReco;
-    if (bosonReco.Pt() > 30) continue;
+ 
+    ///////////////////////////////
+    if (correctRecoilResponse) {
 
-    Double_t mT = sqrt(2. * lep1Reco.Pt() * metWlikeReco.Pt() * (1. - cos(lep1Reco.DeltaPhi(metWlikeReco)) ) );
-    if (mT < mtMin) continue;
-    //if (mT > mtMax) continue;    
+      // to get the "true" pT(W) bin, we use pT(W) computed with PFmet, which should be a more accurate estimate of pT(W) with respect to using trackMET
+      // the problem is that pT(W) is computed using MET, which is not corrected yet
+      // for W+jets MC we could use the gen level pT, but this cannot be used on data or other MC samples 
 
-    TVector2 recoilReco = metWlikeReco.Vect().XYvector() + lep1Reco.Vect().XYvector();
-    //   if (recoilReco.Mod() > 30) continue;
+      Double_t wptUsingPFmet = (lep1Reco2D + pfmet2D).Mod();
+      TH1D* hRecoilCorrection = useTrackMet ? hRecoilCorrectionTkmet : hRecoilCorrectionPfmet;
+      Int_t recoilBin = hRecoilCorrection->GetXaxis()->FindFixBin(wptUsingPFmet);
 
-    // fill histograms for isolation before cutting on it
-    fillTH1(hlep1relIso03_noIsoCut, leptonIso03toUse, wgt);
-    fillTH2(h2_mT_lep1relIso03_noIsoCut, mT, leptonIso03toUse, wgt);
-    fillTH2(h2_mT_lep1relIso03_noIsoCut, lep1Reco.Pt(), leptonIso03toUse, wgt);
-    fillTH1(hlep1relIso04_noIsoCut, leptonIso04toUse, wgt);
-    fillTH2(h2_mT_lep1relIso04_noIsoCut, mT, leptonIso04toUse, wgt);
-    fillTH2(h2_lep1pt_lep1relIso04_noIsoCut, lep1Reco.Pt(), leptonIso04toUse, wgt);
+      if (recoilBin <= 0) recoilBin = 1;
+      else if (recoilBin > hRecoilCorrection->GetNbinsX()) recoilBin = hRecoilCorrection->GetNbinsX();
 
-    fillTH1(hlep1miniRelIso_noIsoCut, lep_miniRelIso[0], wgt);
-    fillTH2(h2_mT_lep1miniRelIso_noIsoCut, mT, lep_miniRelIso[0], wgt);
-    fillTH2(h2_lep1pt_lep1miniRelIso_noIsoCut, lep1Reco.Pt(), lep_miniRelIso[0], wgt);
+      recoilTkmet *= hRecoilCorrectionTkmet->GetBinContent(recoilBin);
+      recoilPfmet *= hRecoilCorrectionPfmet->GetBinContent(recoilBin);
+      tkmet2D = -1.0 * (recoilTkmet + lep1Reco2D);
+      pfmet2D = -1.0 * (recoilPfmet + lep1Reco2D);
 
-    if (negativeLeptonHasPassedSelection) {
-      fillTH1(hlep1relIso03_noIsoCut_minus, leptonIso03toUse, wgt);
-      fillTH2(h2_mT_lep1relIso03_noIsoCut_minus, mT, leptonIso03toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso03_noIsoCut_minus, lep1Reco.Pt(), leptonIso03toUse, wgt);
-      fillTH1(hlep1relIso04_noIsoCut_minus, leptonIso04toUse, wgt);
-      fillTH2(h2_mT_lep1relIso04_noIsoCut_minus, mT, leptonIso04toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso04_noIsoCut_minus, lep1Reco.Pt(), leptonIso04toUse, wgt);
-    }
+      // recoilReco *= hRecoilCorrection->GetBinContent(recoilBin);
+      // metReco = -1.0 * (recoilReco + lep1Reco2D); 
+      // bosonReco = lep1Reco2D + metReco;
 
-    if (positiveLeptonHasPassedSelection) {
-      fillTH1(hlep1relIso03_noIsoCut_plus, leptonIso03toUse, wgt);
-      fillTH2(h2_mT_lep1relIso03_noIsoCut_plus, mT, leptonIso03toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso03_noIsoCut_plus, lep1Reco.Pt(), leptonIso03toUse, wgt);
-      fillTH1(hlep1relIso04_noIsoCut_plus, leptonIso04toUse, wgt);
-      fillTH2(h2_mT_lep1relIso04_noIsoCut_plus, mT, leptonIso04toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso04_noIsoCut_plus, lep1Reco.Pt(), leptonIso04toUse, wgt);
-    }
-
-    ////////////////////////////
-    // LEP ISO CUT
-    /////////////////////////////
-    if (isMuon) {
-      
-      if (QCD_enriched_region) {
-	//if ( leptonIso04toUse < leptonIso04threshold_QCD) continue;  // tight iso first lep                 
-	if ( lep_miniRelIso[0] < miniRelIsoThr_QCD) continue;  // tight iso first lep                 
+      if (useTrackMet) {
+	metReco = tkmet2D;
       } else {
-	//if ( leptonIso04toUse > leptonIso04threshold) continue;  // tight iso first lep                                  
-	if ( lep_miniRelIso[0] > miniRelIsoThr) continue;  // tight iso first lep          	
+	metReco = pfmet2D;
+      }
+
+    }
+    ////////////////////////////
+    bosonReco = lep1Reco2D + metReco;
+    recoilReco = -1.0 * bosonReco;
+
+    if (bosonReco.Mod() > 40) continue;
+    if (pfmet2D.Mod() < PFMET_CUT) continue;    
+    if (tkmet2D.Mod() < TKMET_CUT) continue;    
+
+    mT = sqrt( 2. * lep1Reco2D.Mod() * metReco.Mod() * ( 1. - cos(lep1Reco2D.DeltaPhi(metReco)) ) );
+    if (mT < 20) continue;
+    if (mT > 110) continue;
+    //if (mT > mtMax) continue;    
+    mT2over4 = mT*mT/4.0;
+    lep1pt2 = lep1pt * lep1pt; 
+
+    dphiLepMet = fabs(metReco.DeltaPhi(lep1Reco2D));
+    //////////////////////////////////////////////
+    // apply some selections but do not use continue. Just fill some bool to keep track of passed selections
+    ////////////////////////////////////////////
+    if (isMuon) {
+
+      if (QCD_enriched_region) {
+
+	if (PFMET_MU_CR > 0.0 && pfmet2D.Mod() > PFMET_MU_CR) continue;
+	if (fabs(lep_dxy[0]) < QCD_INVERTED_DXY_THR) continue; // apply dxy cut to select QCD in muon region
+	if (lep_relIso04[0] > muIso04thr_QCD) passIsoSel = true; 
+
+      } else {
+
+	if (useFakeRateForMuon && (sampleDir.find("qcd_mu_fake") != string::npos)) {
+
+	  if (lep_relIso04[0] < muIso04thr) {
+	    wgt = 0.0;
+	  } else {
+	    // FIXME
+	    // avoid overflow on x axis (which has pT <= 100.0), otherwise I don't know what happens
+	    // same for y axis with eta
+	    Double_t ptToFindBin = (lep_pt[0] > 100.0) ? 99.0 : lep_pt[0]; 
+	    Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.4) ? 2.395 : fabs(lep_eta[0]); 
+	    wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	  }
+	  passIsoSel = true; 
+	} else {
+	  if (lep_relIso04[0] < muIso04thr) passIsoSel = true; 
+	  if (fabs(lep_dxy[0]) > 0.02) continue; 
+	  if (pfmet2D.Mod() < PFMET_MU_SR) continue;
+	}
+
       }
       
     } else {
-      
-      if (QCD_enriched_region) {	  
-	if ( leptonIso03toUse < leptonIso03threshold_QCD) continue;  // tight iso first lep
+
+      if (QCD_enriched_region) {
+
+	if (PFMET_ELE_CR > 0.0 && pfmet2D.Mod() > PFMET_ELE_CR) continue;
+	if (lep_relIso04[0] > eleIso04thr_QCD) passIsoSel = true;
+
+	// for the SR the deta,dphi cuts come from the MVA ID
+	// FIXME: cuts to be checked
+	if (absLep1DetaIn > eleCut->deta) passDetaSel = true;
+      	if (absLep1DphiIn > eleCut->dphi) passDphiSel = true;
+
       } else {
-	if ( leptonIso03toUse > leptonIso03threshold) continue;  // tight iso first lep
+
+	double mvathr = -1;
+	if (fabs(lep_eta[0]) < 1.479) {
+	  mvathr = 0.715;
+	  eleIso04thr = 0.0695;
+	  if (fabs(lep_eta[0]) < 0.8) mvathr = 0.837;
+	} else {
+	  mvathr = 0.357;
+	  eleIso04thr = 0.0821;
+	}
+
+	// when using fake rate, must use events that pass loose selection, but not tight one
+	if (useFakeRateForElectron && (sampleDir.find("qcd_ele_fake") != string::npos)) {
+
+
+	  if (lep_eleMVAId[0] >= mvathr && lep_relIso04[0] < eleIso04thr && lep_convVeto[0] != 1) {
+	    wgt = 0.0;
+	  } else {
+	    // FIXME
+	    // avoid overflow on x axis (which has pT <= 100.0), otherwise I don't know what happens
+	    // same for y axis with eta
+	    Double_t ptToFindBin = (lep1pt > 100.0) ? 99.0 : lep1pt; 
+	    Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.5) ? 2.495 : fabs(lep_eta[0]); 
+	    wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	  }
+	  passIsoSel = true;  // when using fake rate, consider the event as if it had passed the tight selection, therefore also isolation
+	} else {
+	  if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
+	}
+
+	if (pfmet2D.Mod() < PFMET_ELE_SR) continue;
+	passDetaSel = true;
+      	passDphiSel = true;
+   
       }
-      
+
     }
+    /////////////////////////////////////
+
+    fillTH1(hlep1relIso04_noCut[chargeIndex],(Double_t) lep_relIso04[0], wgt);
+
+    if (not passIsoSel) continue;
+
+    fillTH1(hmT[chargeIndex],(Double_t) mT, wgt);
+    fillTH1(hmT2over4[chargeIndex],(Double_t) mT2over4, wgt);
+    fillTH1(hpfmet[chargeIndex],(Double_t) pfmet2D.Mod(), wgt);
+    fillTH1(htkmet[chargeIndex],(Double_t) tkmet2D.Mod(), wgt);
+    fillTH1(hlep1pt[chargeIndex],(Double_t) lep1pt, wgt);
+    fillTH1(hlep1pt2[chargeIndex],(Double_t) lep1pt2, wgt);
+    fillTH1(hlep1eta[chargeIndex],(Double_t) lep1Reco.Eta(), wgt);
+    fillTH1(hlep2pt[chargeIndex],(Double_t) metReco.Mod(), wgt);
+    fillTH1(hbosonpt[chargeIndex],(Double_t) bosonReco.Mod(), wgt);
+    fillTH1(hlep1relIso04[chargeIndex],(Double_t) lep_relIso04[0], wgt);
+    fillTH1(hrecoil[chargeIndex], recoilReco.Mod(), wgt);
+    fillTH1(hdxy[chargeIndex],lep_dxy[0], wgt);
+    fillTH1(hdphiLepMet[chargeIndex], dphiLepMet, wgt);
+    fillTH1(hnVert[chargeIndex], *nVert, wgt);
+    fillTH1(hrho[chargeIndex], *rho, wgt);
+
+    Bool_t etaBinFound = false;
+    for (UInt_t etaBinEdge = 1; etaBinEdge < etaBinEdges_double.size() && not etaBinFound; etaBinEdge++) {
+      if (fabs(lep1Reco.Eta()) < etaBinEdges_double[etaBinEdge]) {
+	fillTH1(hmT_lepEtaBin[chargeIndex][etaBinEdge-1],(Double_t) mT, wgt);
+	fillTH1(hlep1pt_lepEtaBin[chargeIndex][etaBinEdge-1],(Double_t) lep1pt, wgt);
+	etaBinFound = true;
+      }
+    }
+
+    // if (WJetsGenDaughterPdgId > 0) {
+    //   for (Int_t im = 0; im < nMassWeights; im++) {
+    // 	fillTH1(hmT_mw[im], (Double_t) mT, wgt* (*mwWeight)[im]);
+    // 	fillTH1(hlep1pt_mw[im], lep1pt, wgt* (*mwWeight)[im]);
+    //   }
+    // }      
+
+    fillTH2(h2_mT_lep1pt[chargeIndex], mT, lep1pt, wgt);
+    fillTH2(h2_mT_lep1eta[chargeIndex], mT, lep_eta[0], wgt);
+    fillTH2(h2_mT_pfmet[chargeIndex], mT, pfmet2D.Mod(), wgt);
+    fillTH2(h2_mT_tkmet[chargeIndex], mT, tkmet2D.Mod(), wgt);
+    fillTH2(h2_mT_bosonPt[chargeIndex], mT, bosonReco.Mod(), wgt);
+    fillTH2(h2_mT_lep1relIso04[chargeIndex], mT, lep_relIso04[0], wgt);
+    fillTH2(h2_mT_nVert[chargeIndex], mT, *nVert, wgt);
+    fillTH2(h2_lep1pt_lep1eta[chargeIndex], lep1pt, lep_eta[0], wgt);
+    fillTH2(h2_lep1pt_pfmet[chargeIndex], lep1pt, pfmet2D.Mod(), wgt);
+    fillTH2(h2_lep1pt_tkmet[chargeIndex], lep1pt, tkmet2D.Mod(), wgt);
+    fillTH2(h2_lep1pt_bosonPt[chargeIndex], lep1pt, bosonReco.Mod(), wgt);
+    fillTH2(h2_lep1pt_lep1relIso04[chargeIndex], lep1pt, lep_relIso04[0], wgt);
+    fillTH2(h2_lep1pt_nVert[chargeIndex], lep1pt, *nVert, wgt);
+    fillTH2(h2_pfmet_tkmet[chargeIndex], pfmet2D.Mod(), tkmet2D.Mod(), wgt); 
+
+    // if (not isMuon) {
+    //   fillTH1(hlep1sigIetaIeta,(Double_t) lep_sigmaIetaIeta[0], wgt);
+    //   fillTH1(hlep1r9,(Double_t) lep_r9[0], wgt);
+    //   fillTH1(hdetaIn,(Double_t) absLep1DetaIn, wgt);    
+    //   fillTH1(hdphiIn,(Double_t) absLep1DphiIn, wgt);
+    //   fillTH2(h2_mT_lep1sigIetaIeta, mT, lep_sigmaIetaIeta[0], wgt);
+    //   fillTH2(h2_mT_lep1r9, mT, lep_r9[0], wgt);
+    //   fillTH2(h2_lep1pt_lep1sigIetaIeta, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
+    //   fillTH2(h2_lep1pt_lep1r9, lep_pt[0], lep_r9[0], wgt); 
+    //   fillTH2(h2_mT_detaIn, mT, (Double_t) absLep1DetaIn, wgt);
+    //   fillTH2(h2_mT_dphiIn, mT, (Double_t) absLep1DphiIn, wgt);
+    //   fillTH2(h2_lep1pt_detaIn, lep_pt[0], (Double_t) absLep1DetaIn, wgt);
+    //   fillTH2(h2_lep1pt_dphiIn, lep_pt[0], (Double_t) absLep1DphiIn, wgt); 
+    // }      
+
+    // if (negativeLeptonHasPassedSelection) {
+    //   fillTH1(hmT_minus,(Double_t) mT, wgt);
+    //   fillTH1(hmT2over4_minus,(Double_t) mT2over4, wgt);
+    //   fillTH1(hpfmet_minus,(Double_t) pfmet2D.Mod(), wgt);
+    //   fillTH1(htkmet_minus,(Double_t) tkmet2D.Mod(), wgt);
+    //   fillTH1(hlep1pt_minus,(Double_t) lep1pt, wgt);
+    //   fillTH1(hlep1pt2_minus,(Double_t) lep1pt2, wgt);
+    //   fillTH1(hlep1eta_minus,(Double_t) lep1Reco.Eta(), wgt);
+    //   fillTH1(hlep2pt_minus,(Double_t) metReco.Mod(), wgt);
+    //   fillTH1(hbosonpt_minus,(Double_t) bosonReco.Mod(), wgt);
+    //   //fillTH1(hbosoneta_minus,(Double_t) bosonReco.Eta(), wgt);
+    //   fillTH1(hlep1relIso03_minus,(Double_t) lep_relIso03[0], wgt);
+    //   fillTH1(hlep1relIso04_minus,(Double_t) lep_relIso04[0], wgt);
+    //   fillTH1(hrecoil_minus, recoilReco.Mod(), wgt);
+    //   fillTH1(hdxy_minus,lep_dxy[0], wgt);
+    //   fillTH1(hdphiLepMet_minus, dphiLepMet, wgt);
     
-    fillTH1(hmT,(Double_t) mT, wgt);
-    fillTH1(hpfmet,(Double_t) *pfmet, wgt);
-    fillTH1(htkmet,(Double_t) *tkmet, wgt);
-    fillTH1(hlep1pt,(Double_t) lep1Reco.Pt(), wgt);
-    fillTH1(hlep2pt,(Double_t) metWlikeReco.Pt(), wgt);
-    fillTH1(hbosonpt,(Double_t) bosonReco.Pt(), wgt);
-    fillTH1(hbosonpt_wlike,(Double_t) bosonRecoWlike.Pt(), wgt);
-    fillTH1(hbosoneta,(Double_t) bosonReco.Eta(), wgt);
-    fillTH1(hlep1sigIetaIeta,(Double_t) lep_sigmaIetaIeta[0], wgt);
-    fillTH1(hlep1relIso03,(Double_t) leptonIso03toUse, wgt);
-    fillTH1(hlep1relIso04,(Double_t) leptonIso04toUse, wgt);
-    fillTH1(hlep1miniRelIso,(Double_t) lep_miniRelIso[0], wgt);
-    fillTH1(hlep1r9,(Double_t) lep_r9[0], wgt);
-    fillTH1(hrecoil, recoilReco.Mod(), wgt);
+    //   fillTH2(h2_mT_lep1pt_minus, mT, lep_pt[0], wgt);
+    //   fillTH2(h2_mT_lep1eta_minus, mT, lep_eta[0], wgt);
+    //   fillTH2(h2_mT_pfmet_minus, mT, pfmet2D.Mod(), wgt);
+    //   fillTH2(h2_mT_tkmet_minus, mT, tkmet2D.Mod(), wgt);
+    //   fillTH2(h2_mT_bosonPt_minus, mT, bosonReco.Mod(), wgt);
+    //   fillTH2(h2_mT_lep1relIso03_minus, mT, lep_relIso03[0], wgt);
+    //   fillTH2(h2_mT_lep1relIso04_minus, mT, lep_relIso04[0], wgt);
 
-    fillTH2(h2_mT_lep1pt, mT, lep_pt[0], wgt);
-    fillTH2(h2_mT_lep1eta, mT, lep_eta[0], wgt);
-    fillTH2(h2_mT_lep1sigIetaIeta, mT, lep_sigmaIetaIeta[0], wgt);
-    fillTH2(h2_mT_lep1r9, mT, lep_r9[0], wgt);
-    fillTH2(h2_mT_pfmet, mT, *pfmet, wgt);
-    fillTH2(h2_mT_tkmet, mT, *tkmet, wgt);
-    fillTH2(h2_mT_bosonPt, mT, bosonReco.Pt(), wgt);
-    fillTH2(h2_mT_lep1relIso03, mT, leptonIso03toUse, wgt);
-    fillTH2(h2_mT_lep1relIso04, mT, leptonIso04toUse, wgt);
+    //   fillTH2(h2_lep1pt_lep1eta_minus, lep_pt[0], lep_eta[0], wgt);
+    //   fillTH2(h2_lep1pt_pfmet_minus, lep_pt[0], pfmet2D.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_tkmet_minus, lep_pt[0], tkmet2D.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_bosonPt_minus, lep_pt[0], bosonReco.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_lep1relIso03_minus, lep_pt[0], lep_relIso03[0], wgt);
+    //   fillTH2(h2_lep1pt_lep1relIso04_minus, lep_pt[0], lep_relIso04[0], wgt);
 
-    fillTH2(h2_lep1pt_lep1eta, lep_pt[0], lep_eta[0], wgt);
-    fillTH2(h2_lep1pt_lep1sigIetaIeta, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
-    fillTH2(h2_lep1pt_lep1r9, lep_pt[0], lep_r9[0], wgt);
-    fillTH2(h2_lep1pt_pfmet, lep_pt[0], *pfmet, wgt);
-    fillTH2(h2_lep1pt_tkmet, lep_pt[0], *tkmet, wgt);
-    fillTH2(h2_lep1pt_bosonPt, lep_pt[0], bosonReco.Pt(), wgt);
-    fillTH2(h2_lep1pt_lep1relIso03, lep_pt[0], leptonIso03toUse, wgt);
-    fillTH2(h2_lep1pt_lep1relIso04, lep_pt[0], leptonIso04toUse, wgt);
+    //   if (not isMuon) {
+    // 	fillTH1(hlep1sigIetaIeta_minus,(Double_t) lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH1(hlep1r9_minus,(Double_t) lep_r9[0], wgt);
+    // 	fillTH2(h2_mT_lep1sigIetaIeta_minus, mT, lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH2(h2_mT_lep1r9_minus, mT, lep_r9[0], wgt);
+    // 	fillTH2(h2_lep1pt_lep1sigIetaIeta_minus, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH2(h2_lep1pt_lep1r9_minus, lep_pt[0], lep_r9[0], wgt);
+    //   }
 
-    if (negativeLeptonHasPassedSelection) {
-      fillTH1(hmT_minus,(Double_t) mT, wgt);
-      fillTH1(hpfmet_minus,(Double_t) *pfmet, wgt);
-      fillTH1(htkmet_minus,(Double_t) *tkmet, wgt);
-      fillTH1(hlep1pt_minus,(Double_t) lep1Reco.Pt(), wgt);
-      fillTH1(hlep2pt_minus,(Double_t) metWlikeReco.Pt(), wgt);
-      fillTH1(hbosonpt_minus,(Double_t) bosonReco.Pt(), wgt);
-      fillTH1(hbosonpt_wlike_minus,(Double_t) bosonRecoWlike.Pt(), wgt);
-      fillTH1(hbosoneta_minus,(Double_t) bosonReco.Eta(), wgt);
-      fillTH1(hlep1sigIetaIeta_minus,(Double_t) lep_sigmaIetaIeta[0], wgt);
-      fillTH1(hlep1relIso03_minus,(Double_t) leptonIso03toUse, wgt);
-      fillTH1(hlep1relIso04_minus,(Double_t) leptonIso04toUse, wgt);
-      fillTH1(hlep1miniRelIso_minus,(Double_t) lep_miniRelIso[0], wgt);
-      fillTH1(hlep1r9_minus,(Double_t) lep_r9[0], wgt);
-      fillTH1(hrecoil_minus, recoilReco.Mod(), wgt);
+    // }
 
-      fillTH2(h2_mT_lep1pt_minus, mT, lep_pt[0], wgt);
-      fillTH2(h2_mT_lep1eta_minus, mT, lep_eta[0], wgt);
-      fillTH2(h2_mT_lep1sigIetaIeta_minus, mT, lep_sigmaIetaIeta[0], wgt);
-      fillTH2(h2_mT_lep1r9_minus, mT, lep_r9[0], wgt);
-      fillTH2(h2_mT_pfmet_minus, mT, *pfmet, wgt);
-      fillTH2(h2_mT_tkmet_minus, mT, *tkmet, wgt);
-      fillTH2(h2_mT_bosonPt_minus, mT, bosonReco.Pt(), wgt);
-      fillTH2(h2_mT_lep1relIso03_minus, mT, leptonIso03toUse, wgt);
-      fillTH2(h2_mT_lep1relIso04_minus, mT, leptonIso04toUse, wgt);
+    // if (positiveLeptonHasPassedSelection) {
+    //   fillTH1(hmT_plus,(Double_t) mT, wgt);
+    //   fillTH1(hmT2over4_plus,(Double_t) mT2over4, wgt);
+    //   fillTH1(hpfmet_plus,(Double_t) pfmet2D.Mod(), wgt);
+    //   fillTH1(htkmet_plus,(Double_t) tkmet2D.Mod(), wgt);
+    //   fillTH1(hlep1pt_plus,(Double_t) lep1pt, wgt);
+    //   fillTH1(hlep1pt2_plus,(Double_t) lep1pt2, wgt);
+    //   fillTH1(hlep1eta_plus,(Double_t) lep1Reco.Eta(), wgt);
+    //   fillTH1(hlep2pt_plus,(Double_t) metReco.Mod(), wgt);
+    //   fillTH1(hbosonpt_plus,(Double_t) bosonReco.Mod(), wgt);
+    //   //fillTH1(hbosoneta_plus,(Double_t) bosonReco.Eta(), wgt);
+    //   fillTH1(hlep1relIso03_plus,(Double_t) lep_relIso03[0], wgt);
+    //   fillTH1(hlep1relIso04_plus,(Double_t) lep_relIso04[0], wgt);
+    //   fillTH1(hrecoil_plus, recoilReco.Mod(), wgt);
+    //   fillTH1(hdxy_plus,lep_dxy[0], wgt);
+    //   fillTH1(hdphiLepMet_plus, dphiLepMet, wgt);
 
-      fillTH2(h2_lep1pt_lep1eta_minus, lep_pt[0], lep_eta[0], wgt);
-      fillTH2(h2_lep1pt_lep1sigIetaIeta_minus, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
-      fillTH2(h2_lep1pt_lep1r9_minus, lep_pt[0], lep_r9[0], wgt);
-      fillTH2(h2_lep1pt_pfmet_minus, lep_pt[0], *pfmet, wgt);
-      fillTH2(h2_lep1pt_tkmet_minus, lep_pt[0], *tkmet, wgt);
-      fillTH2(h2_lep1pt_bosonPt_minus, lep_pt[0], bosonReco.Pt(), wgt);
-      fillTH2(h2_lep1pt_lep1relIso03_minus, lep_pt[0], leptonIso03toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso04_minus, lep_pt[0], leptonIso04toUse, wgt);
+    //   fillTH2(h2_mT_lep1pt_plus, mT, lep_pt[0], wgt);
+    //   fillTH2(h2_mT_lep1eta_plus, mT, lep_eta[0], wgt);
+    //   fillTH2(h2_mT_pfmet_plus, mT, pfmet2D.Mod(), wgt);
+    //   fillTH2(h2_mT_tkmet_plus, mT, tkmet2D.Mod(), wgt);
+    //   fillTH2(h2_mT_bosonPt_plus, mT, bosonReco.Mod(), wgt);
+    //   fillTH2(h2_mT_lep1relIso03_plus, mT, lep_relIso03[0], wgt);
+    //   fillTH2(h2_mT_lep1relIso04_plus, mT, lep_relIso04[0], wgt);
 
-    }
+    //   fillTH2(h2_lep1pt_lep1eta_plus, lep_pt[0], lep_eta[0], wgt);
+    //   fillTH2(h2_lep1pt_pfmet_plus, lep_pt[0], pfmet2D.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_tkmet_plus, lep_pt[0], tkmet2D.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_bosonPt_plus, lep_pt[0], bosonReco.Mod(), wgt);
+    //   fillTH2(h2_lep1pt_lep1relIso03_plus, lep_pt[0], lep_relIso03[0], wgt);
+    //   fillTH2(h2_lep1pt_lep1relIso04_plus, lep_pt[0], lep_relIso04[0], wgt);
 
-    if (positiveLeptonHasPassedSelection) {
-      fillTH1(hmT_plus,(Double_t) mT, wgt);
-      fillTH1(hpfmet_plus,(Double_t) *pfmet, wgt);
-      fillTH1(htkmet_plus,(Double_t) *tkmet, wgt);
-      fillTH1(hlep1pt_plus,(Double_t) lep1Reco.Pt(), wgt);
-      fillTH1(hlep2pt_plus,(Double_t) metWlikeReco.Pt(), wgt);
-      fillTH1(hbosonpt_plus,(Double_t) bosonReco.Pt(), wgt);
-      fillTH1(hbosonpt_wlike_plus,(Double_t) bosonRecoWlike.Pt(), wgt);
-      fillTH1(hbosoneta_plus,(Double_t) bosonReco.Eta(), wgt);
-      fillTH1(hlep1sigIetaIeta_plus,(Double_t) lep_sigmaIetaIeta[0], wgt);
-      fillTH1(hlep1relIso03_plus,(Double_t) leptonIso03toUse, wgt);
-      fillTH1(hlep1relIso04_plus,(Double_t) leptonIso04toUse, wgt);
-      fillTH1(hlep1miniRelIso_plus,(Double_t) lep_miniRelIso[0], wgt);
-      fillTH1(hlep1r9_plus,(Double_t) lep_r9[0], wgt);
-      fillTH1(hrecoil_plus, recoilReco.Mod(), wgt);
+    //   if (not isMuon) {
+    // 	fillTH1(hlep1r9_plus,(Double_t) lep_r9[0], wgt);
+    // 	fillTH1(hlep1sigIetaIeta_plus,(Double_t) lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH2(h2_mT_lep1sigIetaIeta_plus, mT, lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH2(h2_mT_lep1r9_plus, mT, lep_r9[0], wgt);
+    // 	fillTH2(h2_lep1pt_lep1sigIetaIeta_plus, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
+    // 	fillTH2(h2_lep1pt_lep1r9_plus, lep_pt[0], lep_r9[0], wgt);
+    //   }
 
-      fillTH2(h2_mT_lep1pt_plus, mT, lep_pt[0], wgt);
-      fillTH2(h2_mT_lep1eta_plus, mT, lep_eta[0], wgt);
-      fillTH2(h2_mT_lep1sigIetaIeta_plus, mT, lep_sigmaIetaIeta[0], wgt);
-      fillTH2(h2_mT_lep1r9_plus, mT, lep_r9[0], wgt);
-      fillTH2(h2_mT_pfmet_plus, mT, *pfmet, wgt);
-      fillTH2(h2_mT_tkmet_plus, mT, *tkmet, wgt);
-      fillTH2(h2_mT_bosonPt_plus, mT, bosonReco.Pt(), wgt);
-      fillTH2(h2_mT_lep1relIso03_plus, mT, leptonIso03toUse, wgt);
-      fillTH2(h2_mT_lep1relIso04_plus, mT, leptonIso04toUse, wgt);
-
-      fillTH2(h2_lep1pt_lep1eta_plus, lep_pt[0], lep_eta[0], wgt);
-      fillTH2(h2_lep1pt_lep1sigIetaIeta_plus, lep_pt[0], lep_sigmaIetaIeta[0], wgt);
-      fillTH2(h2_lep1pt_lep1r9_plus, lep_pt[0], lep_r9[0], wgt);
-      fillTH2(h2_lep1pt_pfmet_plus, lep_pt[0], *pfmet, wgt);
-      fillTH2(h2_lep1pt_tkmet_plus, lep_pt[0], *tkmet, wgt);
-      fillTH2(h2_lep1pt_bosonPt_plus, lep_pt[0], bosonReco.Pt(), wgt);
-      fillTH2(h2_lep1pt_lep1relIso03_plus, lep_pt[0], leptonIso03toUse, wgt);
-      fillTH2(h2_lep1pt_lep1relIso04_plus, lep_pt[0], leptonIso04toUse, wgt);
-
-    }
-
-
+    // }
 
   }
 
   cout << endl;
   cout << "Writing on output file" << endl;
-  outputFile->Write();
+  delete recoilCorrFile;
+  delete fakeRateFile;
+
+  // if the file is opened in UPDATE mode, the following should overwrite an object if its key inside the file already exists
+  // this needs to be tested
+  outputFile->Write(0,TObject::kOverwrite);
 
   cout << endl;
 
@@ -531,15 +1027,15 @@ void makeWBosonVariableHistograms(const string& inputDIR = "./", const string& o
 				  const Bool_t QCD_enriched_region = false, 
 				  const Bool_t isMuon = false) {
 
-  if (outputDIR!= "./") system(("mkdir -p " + outputDIR).c_str());
-  system(("cp "+ PhpToCopy + " " + outputDIR).c_str());
+  createPlotDirAndCopyPhp(outputDIR);
 
   gROOT->SetBatch(kTRUE);
   TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2()  
 
   cout << endl;
 
-  TFile* outputFile = new TFile((outputDIR + outfileName).c_str(),"RECREATE");
+  //TFile* outputFile = new TFile((outputDIR + outfileName).c_str(),"RECREATE");
+  TFile* outputFile = new TFile((outputDIR + outfileName).c_str(),"UPDATE");
   if (!outputFile || outputFile->IsZombie()) {
     cout << "Error: file not opened. Exit" << endl;
     exit(EXIT_FAILURE);
@@ -547,12 +1043,28 @@ void makeWBosonVariableHistograms(const string& inputDIR = "./", const string& o
 
   outputFile->cd();
 
-  fillHistograms(inputDIR, outputDIR, Sample::wjets, outputFile, QCD_enriched_region, isMuon);
-  if (isMuon) fillHistograms(inputDIR, outputDIR, Sample::qcd_mu, outputFile, QCD_enriched_region, isMuon);
-  else fillHistograms(inputDIR, outputDIR, Sample::qcd_ele, outputFile, QCD_enriched_region, isMuon);
+  if (isMuon) {
+    fillHistograms(inputDIR, outputDIR, Sample::data_singleMu, outputFile, QCD_enriched_region, isMuon);
+    // do both fake rate and MC for QCD (former only if required, because it might not be implemented)
+    if (useFakeRateForMuon && not QCD_enriched_region) fillHistograms(inputDIR, outputDIR, Sample::qcd_mu_fake, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::qcd_mu, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
+  } else {
+    fillHistograms(inputDIR, outputDIR, Sample::data_singleEG, outputFile, QCD_enriched_region, isMuon);
+    if (useFakeRateForElectron && not QCD_enriched_region) fillHistograms(inputDIR, outputDIR, Sample::qcd_ele_fake, outputFile, QCD_enriched_region, isMuon); // use fake rate only in SR
+    fillHistograms(inputDIR, outputDIR, Sample::qcd_ele, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
+    fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
+  }
+  fillHistograms(inputDIR, outputDIR, Sample::wtaunujets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::zjets, outputFile, QCD_enriched_region, isMuon);
-
+  fillHistograms(inputDIR, outputDIR, Sample::top, outputFile, QCD_enriched_region, isMuon);
+  fillHistograms(inputDIR, outputDIR, Sample::diboson, outputFile, QCD_enriched_region, isMuon);
+  
   outputFile->Close();
+  delete outputFile;
 
+  system(("cp makeWBosonVariableHistograms.C " + outputDIR).c_str());
   
 }

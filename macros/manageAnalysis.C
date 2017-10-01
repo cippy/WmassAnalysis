@@ -15,11 +15,12 @@ using namespace std;
 // You call this macro with the same arguments as makeVariableHistograms.C, but using only strings (to build command in an easier way)
 // e.g., if you pass a number or a bool, you write these as if they were strings
 
-void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0) {
+void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Int_t plot_all_0_pos1_neg2 = 0, const Bool_t useEleSkimmedSample = true) {
 
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots/variableHistograms_miniIso/";
-    
-  string inputDIR  = "/u2/emanuele/TREES_1LEP_80X_V1/";
+  // plot_all_0_pos1_neg2 -->  0: plot both +ve and -ve; 1: plot only +ve; 2: plot only -ve
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/test_genWeight_normToGetEntries/";
+
+  string inputDIR  = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";  // WARNING: it is actually set for each region below
   string outfileName = "wmass_varhists.root";
 
   string outputDIR = "";
@@ -31,14 +32,14 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
   string command = "";
   string plotCommand = "";
   string qcdStudyCommand = "";
-  //string correlationCommand = "";
+  string correlationCommand = "";
 
   string infile_sigReg = "";   
   string infile_bkgReg = ""; 
 
   gROOT->ProcessLine(".L makeWBosonVariableHistograms.C++");
   gROOT->ProcessLine(".L makeDataMCPlots.C++");
-  gROOT->ProcessLine(".L makeQCDstudy.C++");
+  //gROOT->ProcessLine(".L makeQCDstudy.C++");
   //gROOT->ProcessLine(".L makeCorrelationStudy.C++");
 
   cout << "===========================" << endl;
@@ -56,56 +57,68 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 
     /////////////////////
     // Wenu
-    outputDIR = outputPath + "Wenu/";
-    QCD_enriched_region = "false";
-    isMuon = "false";
-    command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 1) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }
+    if (skip_no0_cut1_invCut2 != 1) {
 
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+      if (useEleSkimmedSample) inputDIR = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";
+      outputDIR = outputPath + "Wenu/";
+      QCD_enriched_region = "false";
+      isMuon = "false";
+      command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
       }
+
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 1; i < 3; i++) {
+	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
+	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
+      }
+      cout << endl;
+
     }
-    cout << endl;
 
     //correlationCommand = "makeCorrelationStudy(\"" + outputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
 
     //////////////////////
-    // Wenu inverted iso cut
-    outputDIR = outputPath + "Wenu_invertIsoCut/";
-    QCD_enriched_region = "true";
-    isMuon = "false";
-    command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 1) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }
-
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+    // Wenu inverted cut
+    if (skip_no0_cut1_invCut2 != 2) {
+      
+      //if (useEleSkimmedSample) inputDIR = "/u2/emanuele/TREES_1LEP_53X_V2_QCDSKIM_V3/";
+      if (useEleSkimmedSample) inputDIR = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";
+      outputDIR = outputPath + "Wenu_QCD_CR/";
+      QCD_enriched_region = "true";
+      isMuon = "false";
+      command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
       }
-    }
-    cout << endl;
+      
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 1; i < 3; i++) {
+	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
+	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
+      }
+      cout << endl;
 
+    }
     //////////////////////////////
     // QCD study W->enu
-    outputDIR = outputPath + "QCD_study/";
-    infile_sigReg = outputPath + "Wenu/wmass_varhists.root"; 
-    infile_bkgReg = outputPath + "Wenu_invertIsoCut/wmass_varhists.root";
-    isMuon = "false";
-    qcdStudyCommand = "makeQCDstudy(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
-    gROOT->ProcessLine(qcdStudyCommand.c_str());
+    // outputDIR = outputPath + "QCD_study/";
+    // infile_sigReg = outputPath + "Wenu/wmass_varhists.root"; 
+    // infile_bkgReg = outputPath + "Wenu_QCD_CR/wmass_varhists.root";
+    // isMuon = "false";
+    // qcdStudyCommand = "makeQCDstudy(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
+    // gROOT->ProcessLine(qcdStudyCommand.c_str());
 
 
   }
@@ -114,63 +127,75 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 
     /////////////////////
     // Wmunu
-    outputDIR = outputPath + "Wmunu/";
-    QCD_enriched_region = "false";
-    isMuon = "true";
-    command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 1) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }
-
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+    if (skip_no0_cut1_invCut2 != 1) {
+     
+      inputDIR  = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";
+      outputDIR = outputPath + "Wmunu/";
+      QCD_enriched_region = "false";
+      isMuon = "true";
+      command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
       }
+
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 1; i < 3; i++) {
+	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
+	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
+      }
+      cout << endl;
+
     }
-    cout << endl;
 
     //////////////////////
     // Wmunu inverted iso cut
-    outputDIR = outputPath + "Wmunu_invertIsoCut/";
-    QCD_enriched_region = "true";
-    isMuon = "true";
-    command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
-    if (skip_no0_sel1_plot2 != 2) {
-      cout << command << endl;
-      gROOT->ProcessLine(command.c_str());
-    }  
+    if (skip_no0_cut1_invCut2 != 2) {
 
-    //plot with option 0,1,2 to do combined, positive or negative W
-    if (skip_no0_sel1_plot2 != 2) {
-      for (Int_t i = 0; i < 3; i++) {
-	plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	cout << plotCommand << endl;
-	gROOT->ProcessLine(plotCommand.c_str());
+      inputDIR  = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";
+      outputDIR = outputPath + "Wmunu_QCD_CR/";
+      QCD_enriched_region = "true";
+      isMuon = "true";
+      command = "makeWBosonVariableHistograms(\"" + inputDIR + "\",\"" + outputDIR + "\",\"" + outfileName + "\"," + QCD_enriched_region + "," + isMuon + ")";
+      if (skip_no0_sel1_plot2 != 1) {
+	cout << command << endl;
+	gROOT->ProcessLine(command.c_str());
+      }  
+
+      //plot with option 0,1,2 to do combined, positive or negative W
+      if (skip_no0_sel1_plot2 != 2) {
+	for (Int_t i = 1; i < 3; i++) {
+	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
+	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
+	  cout << plotCommand << endl;
+	  gROOT->ProcessLine(plotCommand.c_str());
+	}
       }
+      cout << endl;
+
     }
-    cout << endl;
 
     //////////////////////////////
     // QCD study W->munu
-    outputDIR = outputPath + "QCD_study/";
-    infile_sigReg = outputPath + "Wmunu/wmass_varhists.root"; 
-    infile_bkgReg = outputPath + "Wmunu_invertIsoCut/wmass_varhists.root";
-    isMuon = "true";
-    qcdStudyCommand = "makeQCDstudy(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
-    gROOT->ProcessLine(qcdStudyCommand.c_str());
+    // outputDIR = outputPath + "QCD_study/";
+    // infile_sigReg = outputPath + "Wmunu/wmass_varhists.root"; 
+    // infile_bkgReg = outputPath + "Wmunu_QCD_CR/wmass_varhists.root";
+    // isMuon = "true";
+    // qcdStudyCommand = "makeQCDstudy(\"" + outputDIR + "\",\"" + infile_sigReg + "\",\"" + infile_bkgReg + "\"," + isWregion + "," + isMuon + ")";
+    // gROOT->ProcessLine(qcdStudyCommand.c_str());
 
   }
 
 
   ///////////////////////////////////
   // Z region
-  isWregion = "false";
-  cout << endl;
-  cout << "Z REGION" << endl;
+  // isWregion = "false";
+  // cout << endl;
+  // cout << "Z REGION" << endl;
   cout << endl;
 
 

@@ -1,6 +1,8 @@
 #ifndef CMS_lumi_h
 #define CMS_lumi_h
 
+#include "./macros/centerOfMassEnergy.h"
+
 #include "TPad.h"
 #include "TLatex.h"
 #include "TLine.h"
@@ -107,9 +109,9 @@ void CMS_lumi(TPad* pad = NULL, string lumi = "", bool up = false, bool skipPrel
     latex2->SetTextSize(0.5*pad->GetTopMargin());
   
   if(lumi != "")
-    latex2->DrawLatex(0.94+offsetLumi, 0.95,(lumi+" fb^{-1} (8 TeV)").c_str());
+    latex2->DrawLatex(0.94+offsetLumi, 0.95,Form("%s fb^{-1} (%d TeV)",lumi.c_str(),centerOfMassEnergy));
   else
-    latex2->DrawLatex(0.88+offsetLumi, 0.95,(lumi+"(8 TeV)").c_str());
+    latex2->DrawLatex(0.88+offsetLumi, 0.95,Form("(%d TeV)",centerOfMassEnergy));
 
   if(up){
     latex2->SetTextSize(0.65*pad->GetTopMargin());

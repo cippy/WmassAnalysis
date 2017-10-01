@@ -2,6 +2,8 @@
 #define utility_h
 
 #include "../CMS_lumi.h"
+#include "./centerOfMassEnergy.h"
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,13 +85,14 @@ static string PhpToCopy = "/afs/cern.ch/user/m/mciprian/www/index.php";
 enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, wenujets, wmunujets, wtaunujets, zjets, qcd_mu, qcd_ele, top, diboson, qcd_ele_fake, qcd_mu_fake};
 enum LepFlavour {electron = 11, muon = 13, tau = 15};
 
+// moved to centerOfMassEnergy.h
 //static Double_t intLumi = 36.4;
-static Double_t intLumi = 19.7;
-static Bool_t use8TeVSample = true;
-static Bool_t useTrackMet = true;
-static Bool_t useAbsIso = false;  // rel iso or abs iso to cut (abs iso is rel iso times lepton pT)
-static bool useFakeRateForElectron = true;
-static bool useFakeRateForMuon = true;
+//static Double_t intLumi = 19.7;
+//static Bool_t use8TeVSample = true;
+/* static Bool_t useTrackMet = true; */
+/* static Bool_t useAbsIso = false;  // rel iso or abs iso to cut (abs iso is rel iso times lepton pT) */
+/* static bool useFakeRateForElectron = false; */
+/* static bool useFakeRateForMuon = false; */
 
 // electron ID variable
 class electronID {
@@ -1648,91 +1651,91 @@ void drawCorrelationPlot(TH2* h2D,
 //======================================================
 
 
-void buildChain(TChain* chain,  TChain* chFriend, const string& treePath = "", const Sample& sample = Sample::data_doubleEG) {
+/* void buildChain(TChain* chain,  TChain* chFriend, const string& treePath = "", const Sample& sample = Sample::data_doubleEG) { */
   
-  cout << "Creating chain ..." << endl;
+/*   cout << "Creating chain ..." << endl; */
   
-  vector<string> subSampleNameVector;
+/*   vector<string> subSampleNameVector; */
 
-  if (sample == Sample::wjets) {
-    subSampleNameVector.push_back("WJetsToLNu_reHLT");
-  } else if (sample == Sample::zjets) {
-    subSampleNameVector.push_back("DYJetsToLL_M50_reHLT");
-  } else if (sample == Sample::data_doubleEG) {
-    subSampleNameVector.push_back("DoubleEG_Run2016B_23Sep2016_v3_runs_273150_275376");
-    subSampleNameVector.push_back("DoubleEG_Run2016C_23Sep2016_v1_runs_271036_284044");
-    subSampleNameVector.push_back("DoubleEG_Run2016D_23Sep2016_v1_runs_271036_284044");
-    subSampleNameVector.push_back("DoubleEG_Run2016E_23Sep2016_v1_runs_271036_284044");
-    subSampleNameVector.push_back("DoubleEG_Run2016F_23Sep2016_v1_runs_271036_284044");
-    subSampleNameVector.push_back("DoubleEG_Run2016G_23Sep2016_v1_runs_271036_284044");
-    subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v1_runs_281085_281201");
-    subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v2_runs_281207_284035");
-    subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v3_runs_284036_284044"); 
-  } else if (sample == Sample::qcd_mu) {
-    subSampleNameVector.push_back("QCD_Pt120to170_Mu5");
-    subSampleNameVector.push_back("QCD_Pt15to20_Mu5");
-    subSampleNameVector.push_back("QCD_Pt1000toInf_Mu5");
-    subSampleNameVector.push_back("QCD_Pt20to30_Mu5");
-    subSampleNameVector.push_back("QCD_Pt300to470_Mu5");
-    //subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext");
-    subSampleNameVector.push_back("QCD_Pt30to50_Mu5");
-    subSampleNameVector.push_back("QCD_Pt470to600_Mu5");
-    //subSampleNameVector.push_back("QCD_Pt470to600_Mu5_ext");
-    subSampleNameVector.push_back("QCD_Pt170to300_Mu5");
-    subSampleNameVector.push_back("QCD_Pt50to80_Mu5");
-    subSampleNameVector.push_back("QCD_Pt600to800_Mu5");
-    //subSampleNameVector.push_back("QCD_Pt600to800_Mu5_ext");
-    subSampleNameVector.push_back("QCD_Pt800to1000_Mu5");
-    //subSampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext");
-    subSampleNameVector.push_back("QCD_Pt80to120_Mu5");
-  } else if (sample == Sample::qcd_ele) {
-    subSampleNameVector.push_back("QCD_Pt20to30_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt30to50_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt50to80_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt80to120_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt120to170_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt170to300_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt300toInf_EMEnriched");
-    subSampleNameVector.push_back("QCD_Pt_30to80_bcToE");
-    subSampleNameVector.push_back("QCD_Pt_170to250_bcToE");
-    subSampleNameVector.push_back("QCD_Pt_250toInf_bcToE");
-  } else {
-    cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl;
-    exit(EXIT_FAILURE);
-  }
+/*   if (sample == Sample::wjets) { */
+/*     subSampleNameVector.push_back("WJetsToLNu_reHLT"); */
+/*   } else if (sample == Sample::zjets) { */
+/*     subSampleNameVector.push_back("DYJetsToLL_M50_reHLT"); */
+/*   } else if (sample == Sample::data_doubleEG) { */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016B_23Sep2016_v3_runs_273150_275376"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016C_23Sep2016_v1_runs_271036_284044"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016D_23Sep2016_v1_runs_271036_284044"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016E_23Sep2016_v1_runs_271036_284044"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016F_23Sep2016_v1_runs_271036_284044"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016G_23Sep2016_v1_runs_271036_284044"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v1_runs_281085_281201"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v2_runs_281207_284035"); */
+/*     subSampleNameVector.push_back("DoubleEG_Run2016H_PromptReco_v3_runs_284036_284044");  */
+/*   } else if (sample == Sample::qcd_mu) { */
+/*     subSampleNameVector.push_back("QCD_Pt120to170_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt15to20_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt1000toInf_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt20to30_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt300to470_Mu5"); */
+/*     //subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext"); */
+/*     subSampleNameVector.push_back("QCD_Pt30to50_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt470to600_Mu5"); */
+/*     //subSampleNameVector.push_back("QCD_Pt470to600_Mu5_ext"); */
+/*     subSampleNameVector.push_back("QCD_Pt170to300_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt50to80_Mu5"); */
+/*     subSampleNameVector.push_back("QCD_Pt600to800_Mu5"); */
+/*     //subSampleNameVector.push_back("QCD_Pt600to800_Mu5_ext"); */
+/*     subSampleNameVector.push_back("QCD_Pt800to1000_Mu5"); */
+/*     //subSampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext"); */
+/*     subSampleNameVector.push_back("QCD_Pt80to120_Mu5"); */
+/*   } else if (sample == Sample::qcd_ele) { */
+/*     subSampleNameVector.push_back("QCD_Pt20to30_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt30to50_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt50to80_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt80to120_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt120to170_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt170to300_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt300toInf_EMEnriched"); */
+/*     subSampleNameVector.push_back("QCD_Pt_30to80_bcToE"); */
+/*     subSampleNameVector.push_back("QCD_Pt_170to250_bcToE"); */
+/*     subSampleNameVector.push_back("QCD_Pt_250toInf_bcToE"); */
+/*   } else { */
+/*     cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl; */
+/*     exit(EXIT_FAILURE); */
+/*   } */
 
   
-  for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
+/*   for(UInt_t i = 0; i < subSampleNameVector.size(); i++) { */
   
-    string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerDarkMatterMonoJet/tree.root";
-    string friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root";
-    chain->Add(TString(treeRootFile.c_str()));
-    chFriend->Add(TString(friend_treeRootFile.c_str()));
+/*     string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerDarkMatterMonoJet/tree.root"; */
+/*     string friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root"; */
+/*     chain->Add(TString(treeRootFile.c_str())); */
+/*     chFriend->Add(TString(friend_treeRootFile.c_str())); */
 
-  }
+/*   } */
 
-  if(!chain ) {
-    cout << "#### Error in buildChain() function: chain not created. End of programme" << endl;
-    exit(EXIT_FAILURE);
-  }
+/*   if(!chain ) { */
+/*     cout << "#### Error in buildChain() function: chain not created. End of programme" << endl; */
+/*     exit(EXIT_FAILURE); */
+/*   } */
 
-  if(!chFriend ) {
-    cout << "#### Error in buildChain() function: chFriend not created. End of programme" << endl;
-    exit(EXIT_FAILURE);
-  }
+/*   if(!chFriend ) { */
+/*     cout << "#### Error in buildChain() function: chFriend not created. End of programme" << endl; */
+/*     exit(EXIT_FAILURE); */
+/*   } */
 
-  cout << "Adding friend to chain ..." << endl;
-  chain->AddFriend(chFriend);  //adding whole friend chain as friend                                                                                                        
+/*   cout << "Adding friend to chain ..." << endl; */
+/*   chain->AddFriend(chFriend);  //adding whole friend chain as friend                                                                                                         */
 
-  cout << "entries in chain    = " << chain->   GetEntries() << endl;
-  cout << "entries in chFriend = " << chFriend->GetEntries() << endl;
+/*   cout << "entries in chain    = " << chain->   GetEntries() << endl; */
+/*   cout << "entries in chFriend = " << chFriend->GetEntries() << endl; */
 
-  if (chain->GetEntries() != chFriend->GetEntries()) {
-    cout << "#### Error in buildChain() function: chain and chFriend have different number of events. End of programme" << endl;
-    exit(EXIT_FAILURE);
-  }
+/*   if (chain->GetEntries() != chFriend->GetEntries()) { */
+/*     cout << "#### Error in buildChain() function: chain and chFriend have different number of events. End of programme" << endl; */
+/*     exit(EXIT_FAILURE); */
+/*   } */
 
-}
+/* } */
 
 //===========================================================
 
@@ -1804,7 +1807,7 @@ Double_t getXsecOverNgen(const string& sample) {
 
 //=========================================================
 
-Double_t getXsec(const string& sample) {
+Double_t getXsec8TeV(const string& sample) {
   
   // xsec in pb
   map<string, Double_t> cross_section;
@@ -1845,82 +1848,275 @@ Double_t getXsec(const string& sample) {
  
 
  // return xsec in fb
-  if (sample.find("data") != string::npos) return 1.0;
-  else                                     return cross_section[sample] * 1000.0 ;  // return xsec in fb
+  if (sample.find("data") != string::npos || sample.find("fake") != string::npos)
+    return 1.0;
+  else
+    return cross_section[sample] * 1000.0 ;  // return xsec in fb
 
 }
 
 
 //=========================================================
 
-void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& treePath = "", const Sample& sample = Sample::data_doubleEG, 
-		    TChain* chFriend = NULL, 
-		    TChain* chSfFriend = NULL
-		    ) {
+Double_t getXsec13TeV(const string& sample) {
+  
+  // xsec in pb
+  map<string, Double_t> cross_section;
+
+  ////////////////////
+  // ZJets
+  ////////////////////
+  cross_section["DYJetsM50"] = 3.0 * 2008.0;
+
+  ////////////////////
+  //WJets
+  ////////////////////
+  cross_section["WJets"] = 3.0 * 20508.9;
+
+  ////////////////////
+  // top
+  ////////////////////
+  cross_section["TBar_tWch"] = 35.6;
+  cross_section["TTJets_SingleLeptonFromT"] = 831.76*(3*0.108)*(1-3*0.108);
+  cross_section["TTJets_SingleLeptonFromTbar"] = 831.76*(3*0.108)*(1-3*0.108);
+  cross_section["TToLeptons_sch"] = (7.20+4.16)*0.108*3;
+  cross_section["TToLeptons_tch_amcatnlo"] = (136.05+80.97)*0.108*3;
+  cross_section["T_tWch"] = 35.6;
+
+  ////////////////////
+  // diboson5B
+  ////////////////////
+  cross_section["WWJets"] = 63.21 * 1.82;
+  cross_section["WZJets"] = 47.13;
+  cross_section["ZZJets"] = 16.523;
+
+  ////////////////////
+  //QCD mu enriched
+  ////////////////////
+  cross_section["QCD_Mu15"] = 720.65e6*0.00042;
+  cross_section["QCD_Pt1000toInf_Mu5"] = 10.4305*0.15544;
+  cross_section["QCD_Pt120to170_Mu5"] = 469797*0.05362;
+  cross_section["QCD_Pt15to20_Mu5"] = 1273190000*0.003;
+  cross_section["QCD_Pt170to300_Mu5"] = 117989*0.07335;
+  cross_section["QCD_Pt20to30_Mu5"] = 558528000*0.0053;
+  cross_section["QCD_Pt300to470_Mu5_ext"] = 7820.25*0.10196;
+  cross_section["QCD_Pt300to470_Mu5"] = 7820.25*0.10196;
+  cross_section["QCD_Pt30to50_Mu5"] = 139803000*0.01182;
+  cross_section["QCD_Pt470to600_Mu5_ext"] = 645.528*0.12242;
+  cross_section["QCD_Pt470to600_Mu5"] = 645.528*0.12242;
+  cross_section["QCD_Pt50to80_Mu5"] = 19222500*0.02276;
+  cross_section["QCD_Pt600to800_Mu5_ext"] = 187.109*0.13412;
+  cross_section["QCD_Pt600to800_Mu5"] = 187.109*0.13412;
+  cross_section["QCD_Pt800to1000_Mu5_ext"] = 32.3486*0.14552;
+  cross_section["QCD_Pt800to1000_Mu5"] = 32.3486*0.14552;
+  cross_section["QCD_Pt80to120_Mu5"] = 2758420*0.03844;
+
+  ////////////////////
+  //QCD ele enriched
+  ////////////////////
+  cross_section["QCD_Pt120to170_EMEnriched"] = 477000*0.132;
+  cross_section["QCD_Pt170to300_EMEnriched"] = 114000*0.165;
+  cross_section["QCD_Pt20to30_EMEnriched"] = 557600000*0.0096;
+  cross_section["QCD_Pt300toInf_EMEnriched"] = 9000*0.15;
+  cross_section["QCD_Pt30to50_EMEnriched"] = 136000000*0.073;
+  cross_section["QCD_Pt50to80_EMEnriched"] = 19800000*0.146;
+  cross_section["QCD_Pt80to120_EMEnriched"] = 2800000*0.125;
+  cross_section["QCD_Pt_170to250_bcToE"] = 105771*0.02492;
+  cross_section["QCD_Pt_250toInf_bcToE"] = 21094.1*0.03375;
+  cross_section["QCD_Pt_30to80_bcToE"] = 159068000*0.00255;
+
+ // return xsec in fb
+  if (sample.find("data") != string::npos || sample.find("fake") != string::npos) 
+    return 1.0;
+  else
+    return cross_section[sample] * 1000.0 ;  // return xsec in fb
+
+}
+
+
+//=========================================================
+
+void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSample = true, const string& treePath = "", const Sample& sample = Sample::data_doubleEG, 
+		TChain* chFriend = NULL, 
+		TChain* chSfFriend = NULL
+		) {
   
   cout << "Creating chain ..." << endl;
   
   vector<string> subSampleNameVector;
 
-  if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
-    subSampleNameVector.push_back("WJets");
-  } else if (sample == Sample::zjets) {
-    subSampleNameVector.push_back("DYJetsM50");
-  } else if (sample == Sample::data_doubleEG) {
-    subSampleNameVector.push_back("DoubleElectronAB");
-    subSampleNameVector.push_back("DoubleElectronC");
-    subSampleNameVector.push_back("DoubleElectronD");
-  } else if (sample == Sample::data_singleEG || sample == Sample::qcd_ele_fake) {
-    subSampleNameVector.push_back("SingleElectronAB");
-    subSampleNameVector.push_back("SingleElectronC");
-    subSampleNameVector.push_back("SingleElectronD");
-  } else if (sample == Sample::data_doubleMu) {
-    subSampleNameVector.push_back("DoubleMuAB");
-    subSampleNameVector.push_back("DoubleMuC");
-    subSampleNameVector.push_back("DoubleMuD");
-  } else if (sample == Sample::data_singleMu || sample == Sample::qcd_mu_fake) {
-    subSampleNameVector.push_back("SingleMuAB");
-    subSampleNameVector.push_back("SingleMuC");
-    subSampleNameVector.push_back("SingleMuD");
-  } else if (sample == Sample::top) {
-    subSampleNameVector.push_back("TTJets");
-    subSampleNameVector.push_back("Tbarsch");
-    subSampleNameVector.push_back("TbartW");
-    subSampleNameVector.push_back("Tbartch");
-    subSampleNameVector.push_back("Tsch");
-    subSampleNameVector.push_back("TtW");
-    subSampleNameVector.push_back("Ttch");
-  } else if (sample == Sample::diboson) {
-    subSampleNameVector.push_back("WWJets");
-    subSampleNameVector.push_back("WZJets");
-  } else if (sample == Sample::qcd_mu) {
-    subSampleNameVector.push_back("QCDMuPt15");
-  } else if (sample == Sample::qcd_ele) {
-    cout << "#### Error in buildChain8TeV() function: qcd_ele not available at the moment, please check. Exit ..." << endl;
-    exit(EXIT_FAILURE);
-    //subSampleNameVector.push_back("");
+  if (use8TeVSample) {
+    if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
+      subSampleNameVector.push_back("WJets");
+    } else if (sample == Sample::zjets) {
+      subSampleNameVector.push_back("DYJetsM50");
+    } else if (sample == Sample::data_doubleEG) {
+      subSampleNameVector.push_back("DoubleElectronAB");
+      subSampleNameVector.push_back("DoubleElectronC");
+      subSampleNameVector.push_back("DoubleElectronD");
+    } else if (sample == Sample::data_singleEG || sample == Sample::qcd_ele_fake) {
+      subSampleNameVector.push_back("SingleElectronAB");
+      subSampleNameVector.push_back("SingleElectronC");
+      subSampleNameVector.push_back("SingleElectronD");
+    } else if (sample == Sample::data_doubleMu) {
+      subSampleNameVector.push_back("DoubleMuAB");
+      subSampleNameVector.push_back("DoubleMuC");
+      subSampleNameVector.push_back("DoubleMuD");
+    } else if (sample == Sample::data_singleMu || sample == Sample::qcd_mu_fake) {
+      subSampleNameVector.push_back("SingleMuAB");
+      subSampleNameVector.push_back("SingleMuC");
+      subSampleNameVector.push_back("SingleMuD");
+    } else if (sample == Sample::top) {
+      subSampleNameVector.push_back("TTJets");
+      subSampleNameVector.push_back("Tbarsch");
+      subSampleNameVector.push_back("TbartW");
+      subSampleNameVector.push_back("Tbartch");
+      subSampleNameVector.push_back("Tsch");
+      subSampleNameVector.push_back("TtW");
+      subSampleNameVector.push_back("Ttch");
+    } else if (sample == Sample::diboson) {
+      subSampleNameVector.push_back("WWJets");
+      subSampleNameVector.push_back("WZJets");
+    } else if (sample == Sample::qcd_mu) {
+      subSampleNameVector.push_back("QCDMuPt15");
+    } else if (sample == Sample::qcd_ele) {
+      cout << "#### Error in buildChain() function: qcd_ele not available at the moment, please check. Exit ..." << endl;
+      exit(EXIT_FAILURE);
+      //subSampleNameVector.push_back("");
+    } else {
+      cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl;
+      exit(EXIT_FAILURE);
+    }
   } else {
-    cout << "#### Error in buildChain8TeV() function: sample name not available, please check. Exit ..." << endl;
-    exit(EXIT_FAILURE);
+
+    if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
+      subSampleNameVector.push_back("WJetsToLNu");
+    } else if (sample == Sample::zjets) {
+      subSampleNameVector.push_back("DYJetsToLL_M50");
+    } else if (sample == Sample::data_doubleEG) {
+      subSampleNameVector.push_back("DoubleEG_Run2016B");
+      subSampleNameVector.push_back("DoubleEG_Run2016C");
+      subSampleNameVector.push_back("DoubleEG_Run2016D");
+      subSampleNameVector.push_back("DoubleEG_Run2016E");
+      subSampleNameVector.push_back("DoubleEG_Run2016F");
+      subSampleNameVector.push_back("DoubleEG_Run2016G");
+      subSampleNameVector.push_back("DoubleEG_Run2016H");
+    } else if (sample == Sample::data_doubleMu) {
+      subSampleNameVector.push_back("DoubleMu_Run2016B");
+      subSampleNameVector.push_back("DoubleMu_Run2016C");
+      subSampleNameVector.push_back("DoubleMu_Run2016D");
+      subSampleNameVector.push_back("DoubleMu_Run2016E");
+      subSampleNameVector.push_back("DoubleMu_Run2016F");
+      subSampleNameVector.push_back("DoubleMu_Run2016G");
+      subSampleNameVector.push_back("DoubleMu_Run2016H");
+    } else if (sample == Sample::data_singleEG) {
+      subSampleNameVector.push_back("SingleElectron_Run2016B");
+      subSampleNameVector.push_back("SingleElectron_Run2016C");
+      subSampleNameVector.push_back("SingleElectron_Run2016D");
+      subSampleNameVector.push_back("SingleElectron_Run2016E");
+      subSampleNameVector.push_back("SingleElectron_Run2016F");
+      subSampleNameVector.push_back("SingleElectron_Run2016G");
+      subSampleNameVector.push_back("SingleElectron_Run2016H");
+    } else if (sample == Sample::top) {
+      subSampleNameVector.push_back("TBar_tWch");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar");
+      subSampleNameVector.push_back("TToLeptons_sch");
+      subSampleNameVector.push_back("TToLeptons_tch_amcatnlo");
+      subSampleNameVector.push_back("T_tWch");
+    } else if (sample == Sample::diboson) {
+      subSampleNameVector.push_back("WW");      
+      subSampleNameVector.push_back("WZ");      
+      subSampleNameVector.push_back("ZZ");      
+    } else if (sample == Sample::qcd_mu) {
+      subSampleNameVector.push_back("QCD_Mu15");
+      subSampleNameVector.push_back("QCD_Pt1000toInf_Mu5");
+      subSampleNameVector.push_back("QCD_Pt120to170_Mu5");
+      subSampleNameVector.push_back("QCD_Pt15to20_Mu5");
+      subSampleNameVector.push_back("QCD_Pt170to300_Mu5");
+      subSampleNameVector.push_back("QCD_Pt20to30_Mu5");
+      subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext");
+      subSampleNameVector.push_back("QCD_Pt300to470_Mu5");
+      subSampleNameVector.push_back("QCD_Pt30to50_Mu5");
+      subSampleNameVector.push_back("QCD_Pt470to600_Mu5_ext");
+      subSampleNameVector.push_back("QCD_Pt470to600_Mu5");
+      subSampleNameVector.push_back("QCD_Pt50to80_Mu5");
+      subSampleNameVector.push_back("QCD_Pt600to800_Mu5_ext");
+      subSampleNameVector.push_back("QCD_Pt600to800_Mu5");
+      subSampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext");
+      subSampleNameVector.push_back("QCD_Pt800to1000_Mu5");
+      subSampleNameVector.push_back("QCD_Pt80to120_Mu5");
+    } else if (sample == Sample::qcd_ele) {
+      subSampleNameVector.push_back("QCD_Pt120to170_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt170to300_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt20to30_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt300toInf_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt30to50_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt50to80_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt80to120_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt_170to250_bcToE");
+      subSampleNameVector.push_back("QCD_Pt_250toInf_bcToE");
+      subSampleNameVector.push_back("QCD_Pt_30to80_bcToE");
+    } else {
+      cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl;
+      exit(EXIT_FAILURE);
+    }
+
   }
   
   for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
   
-    string treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
-    if (treePath.find("WSKIM_V") != string::npos || treePath.find("QCDSKIM_V") != string::npos || treePath.find("ZEESKIM_V") != string::npos) {
-      treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/tree.root";
+    string treeRootFile = "";
+    if (use8TeVSample) {
+      treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
+      if (treePath.find("WSKIM_V") != string::npos || treePath.find("QCDSKIM_V") != string::npos || treePath.find("ZEESKIM_V") != string::npos) {
+	treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/tree.root";
+      }
+    } else {
+      if (treePath.find("/eos/cms/") != string::npos) {
+	treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMass/tree.root";
+      } else {
+	cout << "13 TeV trees not available outside eos, or function to read them not implemented yet. Please check. Exit." << endl;
+	exit(EXIT_FAILURE);
+      }
     }
+    cout << "Tree: " << treeRootFile << endl;
 
     chain->Add(TString(treeRootFile.c_str()));
-    // read number of generated files
-    TFile* ftree = new TFile(treeRootFile.c_str(),"READ");
+
+    // for 13 TeV ntuples, new ones (*_nano version) don't have at the moment also the histograms
+    string fileNameToGetTH1 = use8TeVSample ? treeRootFile : Form("root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2/%s_treeProducerWMass_tree.root",subSampleNameVector[i].c_str());
+    // read number of generated events
+    TFile* ftree = new TFile(fileNameToGetTH1.c_str(),"READ");
     if (!ftree || ftree->IsZombie()) {
-      cout << "### Error in buildChain8TeV(): couldn't open file '" << treeRootFile << "'. Exit" << endl;
+      cout << "### Error in buildChain(): couldn't open file '" << treeRootFile << "'. Exit" << endl;
       exit(EXIT_FAILURE);
     }
     TH1F* hCount = (TH1F*) getHistCloneFromFile(ftree,"Count","");
     checkNotNullPtr(hCount,"hCount");
-    genwgtVec.push_back(getXsec(subSampleNameVector[i])/hCount->GetEntries());    
+
+    if (use8TeVSample) {
+
+      genwgtVec.push_back(getXsec8TeV(subSampleNameVector[i])/hCount->GetEntries());    
+
+    } else {
+
+      TH1F* hSumGenWeights = NULL;
+      string sampleDir = getStringFromEnumSample(sample).c_str();
+      if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
+	hSumGenWeights = (TH1F*) getHistCloneFromFile(ftree,"SumGenWeights","");
+	checkNotNullPtr(hSumGenWeights,"hSumGenWeights");
+	// xsec is in ntuples
+	//genwgtVec.push_back(getXsec13TeV(subSampleNameVector[i])/hSumGenWeights->Integral());    
+	// FIXME: understand which weight to use and how to normalize
+	//genwgtVec.push_back(1./(hSumGenWeights->Integral() * (double) hCount->GetEntries()));    
+	genwgtVec.push_back(1./(hSumGenWeights->Integral()));    
+	//genwgtVec.push_back(1./(hSumGenWeights->GetEntries() * (double) hCount->GetEntries()));    
+	//genwgtVec.push_back(1./(double) hCount->GetEntries());    
+	delete hSumGenWeights;
+      }
+
+    }
     delete hCount;
     ftree->Close();
     delete ftree;
@@ -1928,7 +2124,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
   }
 
   if(!chain ) {
-    cout << "#### Error in buildChain8TeV() function: chain not created. End of programme" << endl;
+    cout << "#### Error in buildChain() function: chain not created. End of programme" << endl;
     exit(EXIT_FAILURE);
   }
 
@@ -1945,7 +2141,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
     }
 
     if(!chFriend ) {
-      cout << "#### Error in buildChain8TeV() function: chFriend not created. End of programme" << endl;
+      cout << "#### Error in buildChain() function: chFriend not created. End of programme" << endl;
       exit(EXIT_FAILURE);
     }
 
@@ -1954,7 +2150,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
     cout << "entries in chFriend = " << chFriend->GetEntries() << endl;
     
     if (chain->GetEntries() != chFriend->GetEntries()) {
-      cout << "#### Error in buildChain8TeV() function: chain and chFriend have different number of events." << endl;      
+      cout << "#### Error in buildChain() function: chain and chFriend have different number of events." << endl;      
       cout << "sample: " << getStringFromEnumSample(sample) << endl;
       cout << "chain: " << chain->GetEntries() << endl;
       cout << "chFriend: " << chFriend->GetEntries() << endl;
@@ -1975,7 +2171,7 @@ void buildChain8TeV(TChain* chain, vector<Double_t>& genwgtVec, const string& tr
     }
 
     if(!chSfFriend ) {
-      cout << "#### Error in buildChain8TeV() function: chSfFriend not created. End of programme" << endl;
+      cout << "#### Error in buildChain() function: chSfFriend not created. End of programme" << endl;
       exit(EXIT_FAILURE);
     }
 
