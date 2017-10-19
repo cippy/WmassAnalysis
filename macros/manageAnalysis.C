@@ -15,10 +15,11 @@ using namespace std;
 // You call this macro with the same arguments as makeVariableHistograms.C, but using only strings (to build command in an easier way)
 // e.g., if you pass a number or a bool, you write these as if they were strings
 
-void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Int_t plot_all_0_pos1_neg2 = 0, const Bool_t useEleSkimmedSample = true) {
+void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Int_t plot_all0_pos1_neg2 = 0, const Int_t plot_all0_EB1_EE2 = 0, const Bool_t useEleSkimmedSample = true) {
 
-  // plot_all_0_pos1_neg2 -->  0: plot both +ve and -ve; 1: plot only +ve; 2: plot only -ve
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/test_genWeight_normToGetEntries/";
+  // plot_all0_pos1_neg2 -->  0: plot both +ve and -ve; 1: plot only +ve; 2: plot only -ve
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/test_new/";
+  //string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/trash/";
 
   string inputDIR  = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";  // WARNING: it is actually set for each region below
   string outfileName = "wmass_varhists.root";
@@ -72,10 +73,14 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
       //plot with option 0,1,2 to do combined, positive or negative W
       if (skip_no0_sel1_plot2 != 2) {
 	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
-	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	  cout << plotCommand << endl;
-	  gROOT->ProcessLine(plotCommand.c_str());
+	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	  for (Int_t j = 1; j < 3; j++) {
+	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
+
+	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
+	    cout << plotCommand << endl;
+	    gROOT->ProcessLine(plotCommand.c_str());
+	  }
 	}
       }
       cout << endl;
@@ -102,10 +107,13 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
       //plot with option 0,1,2 to do combined, positive or negative W
       if (skip_no0_sel1_plot2 != 2) {
 	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
-	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	  cout << plotCommand << endl;
-	  gROOT->ProcessLine(plotCommand.c_str());
+	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	  for (Int_t j = 1; j < 3; j++) {
+	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
+	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
+	    cout << plotCommand << endl;
+	    gROOT->ProcessLine(plotCommand.c_str());
+	  }
 	}
       }
       cout << endl;
@@ -142,10 +150,13 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
       //plot with option 0,1,2 to do combined, positive or negative W
       if (skip_no0_sel1_plot2 != 2) {
 	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
-	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	  cout << plotCommand << endl;
-	  gROOT->ProcessLine(plotCommand.c_str());
+	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	  for (Int_t j = 1; j < 3; j++) {
+	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
+	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
+	    cout << plotCommand << endl;
+	    gROOT->ProcessLine(plotCommand.c_str());
+	  }
 	}
       }
       cout << endl;
@@ -169,10 +180,13 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
       //plot with option 0,1,2 to do combined, positive or negative W
       if (skip_no0_sel1_plot2 != 2) {
 	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all_0_pos1_neg2 && i != plot_all_0_pos1_neg2) continue;
-	  plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + ")";
-	  cout << plotCommand << endl;
-	  gROOT->ProcessLine(plotCommand.c_str());
+	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	  for (Int_t j = 1; j < 3; j++) {
+	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
+	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
+	    cout << plotCommand << endl;
+	    gROOT->ProcessLine(plotCommand.c_str());
+	  }
 	}
       }
       cout << endl;

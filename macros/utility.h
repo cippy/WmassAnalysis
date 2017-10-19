@@ -1999,24 +1999,24 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
       subSampleNameVector.push_back("DoubleEG_Run2016D");
       subSampleNameVector.push_back("DoubleEG_Run2016E");
       subSampleNameVector.push_back("DoubleEG_Run2016F");
-      subSampleNameVector.push_back("DoubleEG_Run2016G");
-      subSampleNameVector.push_back("DoubleEG_Run2016H");
+      /* subSampleNameVector.push_back("DoubleEG_Run2016G"); */
+      /* subSampleNameVector.push_back("DoubleEG_Run2016H"); */
     } else if (sample == Sample::data_doubleMu) {
       subSampleNameVector.push_back("DoubleMu_Run2016B");
       subSampleNameVector.push_back("DoubleMu_Run2016C");
       subSampleNameVector.push_back("DoubleMu_Run2016D");
       subSampleNameVector.push_back("DoubleMu_Run2016E");
       subSampleNameVector.push_back("DoubleMu_Run2016F");
-      subSampleNameVector.push_back("DoubleMu_Run2016G");
-      subSampleNameVector.push_back("DoubleMu_Run2016H");
+      /* subSampleNameVector.push_back("DoubleMu_Run2016G"); */
+      /* subSampleNameVector.push_back("DoubleMu_Run2016H"); */
     } else if (sample == Sample::data_singleEG) {
       subSampleNameVector.push_back("SingleElectron_Run2016B");
       subSampleNameVector.push_back("SingleElectron_Run2016C");
       subSampleNameVector.push_back("SingleElectron_Run2016D");
       subSampleNameVector.push_back("SingleElectron_Run2016E");
       subSampleNameVector.push_back("SingleElectron_Run2016F");
-      subSampleNameVector.push_back("SingleElectron_Run2016G");
-      subSampleNameVector.push_back("SingleElectron_Run2016H");
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H"); */
     } else if (sample == Sample::top) {
       subSampleNameVector.push_back("TBar_tWch");
       subSampleNameVector.push_back("TTJets_SingleLeptonFromT");

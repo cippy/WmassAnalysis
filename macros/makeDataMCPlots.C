@@ -49,14 +49,18 @@ void makeDataMCPlots(const string& outputDIR_tmp = "./",
 		     const Bool_t isWregion = true, 
 		     const Bool_t isMuon = false, 
 		     const Int_t plot_all0_pos1_neg2 = 0,
+		     const Int_t plot_all0_EB1_EE2 = 0,
 		     const Bool_t noPlotData = false
 		     ) 
 {
   
   // plot_all0_pos1_neg2 = 0, 1, 2 to do plot for combined +ve and -ve leptons, +ve lepton, -ve lepton
   string subdir = "";
-  if (plot_all0_pos1_neg2 == 1) subdir = "positive/";
-  else if (plot_all0_pos1_neg2 == 2) subdir = "negative/";
+  if (plot_all0_EB1_EE2 == 1) subdir = "barrel/";
+  else if (plot_all0_EB1_EE2 == 2) subdir = "endcap/";
+
+  if (plot_all0_pos1_neg2 == 1) subdir += "positive/";
+  else if (plot_all0_pos1_neg2 == 2) subdir += "negative/";
 
   string outputDIR = outputDIR_tmp + subdir;
   string inputFileName = outputDIR_tmp + inputFileName_tmp;
@@ -87,6 +91,9 @@ void makeDataMCPlots(const string& outputDIR_tmp = "./",
 
   vector<plotManager> myPlot;
   myPlot.push_back(plotManager("hlep1eta",(lepton + " #eta").c_str(),"etaLep1",1));
+  myPlot.push_back(plotManager("hnVert","number of vertices::0,40","nVert",1));
+  myPlot.push_back(plotManager("hrho","#rho::0,35","rho",1));
+
   myPlot.push_back(plotManager("hpfmet","PF E_{T}^{miss} [GeV]::30,300","pfmet",1));
   myPlot.push_back(plotManager("htkmet","tracker E_{T}^{miss} [GeV]","tkmet",2));
   myPlot.push_back(plotManager("hlep1pt",(lepton + " p_{T} [GeV]::30,75").c_str(),"ptLep1",2));
@@ -141,8 +148,17 @@ void makeDataMCPlots(const string& outputDIR_tmp = "./",
 
     //if ( i > 0 ) break;  for tests with only first entry
 
+    // FIXME: find a better way to exclude some histograms
+    if (myPlot[i].getHistName() != "hlep1eta" && myPlot[i].getHistName() != "hnVert" && myPlot[i].getHistName() != "hrho") {
+      if (plot_all0_EB1_EE2 == 1) myPlot[i].setHistName(myPlot[i].getHistName() + "_EB");
+      if (plot_all0_EB1_EE2 == 2) myPlot[i].setHistName(myPlot[i].getHistName() + "_EE");  
+      if (plot_all0_EB1_EE2 == 1) myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_EB");
+      if (plot_all0_EB1_EE2 == 2) myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_EE");
+    }
     if (plot_all0_pos1_neg2 == 1) myPlot[i].setHistName(myPlot[i].getHistName() + "_pos");
     if (plot_all0_pos1_neg2 == 2) myPlot[i].setHistName(myPlot[i].getHistName() + "_neg");
+    if (plot_all0_pos1_neg2 == 1) myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_pos");
+    if (plot_all0_pos1_neg2 == 2) myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_neg");
     //////////////////////////
     // add suffix about the region in canvas title
     myPlot[i].setCanvasName(myPlot[i].getCanvasName() + "_" + plotNameID);

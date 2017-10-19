@@ -213,40 +213,43 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     genLep_motherId = new TTreeReaderArray<Int_t>(reader,"genLep_motherId");
   }
 
+  // (2) refers to 2 bins of eta, EB and EE
 
   // TH1
-  vector<TH1D*> hmT;
-  vector<TH1D*> hmT2over4;
-  vector<TH1D*> hpfmet;
-  vector<TH1D*> htkmet;
-  vector<TH1D*> hlep1pt;
-  vector<TH1D*> hlep1pt2;
+  vector< vector<TH1D*> > hmT(2);
+  vector< vector<TH1D*> > hmT2over4(2);
+  vector< vector<TH1D*> > hpfmet(2);
+  vector< vector<TH1D*> > htkmet(2);
+  vector< vector<TH1D*> > hlep1pt(2);
+  vector< vector<TH1D*> > hlep1pt2(2);
+  vector< vector<TH1D*> > hlep2pt(2);
+  vector< vector<TH1D*> > hbosonpt(2);
+  vector< vector<TH1D*> > hlep1relIso04(2);
+  vector< vector<TH1D*> > hlep1relIso04_noCut(2);
+  vector< vector<TH1D*> > hrecoil(2);
+  vector< vector<TH1D*> > hdxy(2);
+  vector< vector<TH1D*> > hdphiLepMet(2);
+
   vector<TH1D*> hlep1eta;
-  vector<TH1D*> hlep2pt;
-  vector<TH1D*> hbosonpt;
-  vector<TH1D*> hlep1relIso04;
-  vector<TH1D*> hlep1relIso04_noCut;
-  vector<TH1D*> hrecoil;
-  vector<TH1D*> hdxy;
-  vector<TH1D*> hdphiLepMet;
   vector<TH1D*> hnVert;
-  vector<TH1D*> hrho;
+  vector<TH1D*> hrho; 
 
     // TH2
-  vector<TH2D*> h2_mT_lep1pt;
+  vector< vector<TH2D*> > h2_mT_lep1pt(2);
+  vector< vector<TH2D*> > h2_mT_pfmet(2);
+  vector< vector<TH2D*> > h2_mT_tkmet(2);
+  vector< vector<TH2D*> > h2_mT_bosonPt(2);
+  vector< vector<TH2D*> > h2_mT_lep1relIso04(2);
+  vector< vector<TH2D*> > h2_lep1pt_pfmet(2);
+  vector< vector<TH2D*> > h2_lep1pt_tkmet(2);
+  vector< vector<TH2D*> > h2_lep1pt_bosonPt(2);
+  vector< vector<TH2D*> > h2_lep1pt_lep1relIso04(2);
+  vector< vector<TH2D*> > h2_pfmet_tkmet(2);
+
   vector<TH2D*> h2_mT_lep1eta;
-  vector<TH2D*> h2_mT_pfmet;
-  vector<TH2D*> h2_mT_tkmet;
-  vector<TH2D*> h2_mT_bosonPt;
-  vector<TH2D*> h2_mT_lep1relIso04;
   vector<TH2D*> h2_mT_nVert;
   vector<TH2D*> h2_lep1pt_lep1eta;
-  vector<TH2D*> h2_lep1pt_pfmet;
-  vector<TH2D*> h2_lep1pt_tkmet;
-  vector<TH2D*> h2_lep1pt_bosonPt;
-  vector<TH2D*> h2_lep1pt_lep1relIso04;
   vector<TH2D*> h2_lep1pt_nVert;
-  vector<TH2D*> h2_pfmet_tkmet;
 
   // histograms binned in eta
   vector<Double_t> etaBinEdges_double;
@@ -263,29 +266,51 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     }
   }
 
+  // here I distinguish based on charge
   vector< vector<TH1D*> > hmT_lepEtaBin(2);
   vector< vector<TH1D*> > hlep1pt_lepEtaBin(2);
 
   vector<string> charge = {"pos", "neg"};
+  vector<string> subDetId = {"EB", "EE"};
 
   // TH1
   for (Int_t icharge = 0; icharge < 2 ; icharge++) {
 
+    // histograms divided in EB or EE
+
+    for (Int_t iEBorEE = 0; iEBorEE < 2; iEBorEE++) {
+
+      // TH1
+      hmT[iEBorEE].push_back( new TH1D(Form("hmT_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax) );
+      hmT2over4[iEBorEE].push_back( new TH1D(Form("hmT2over4_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMt2over4Bins, mt2over4Min, mt2over4Max) );
+      hpfmet[iEBorEE].push_back( new TH1D(Form("hpfmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",120,0,300) );
+      htkmet[iEBorEE].push_back( new TH1D(Form("htkmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",120,0,300) );
+      hlep1pt[iEBorEE].push_back( new TH1D(Form("hlep1pt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",112,24,80) );  //60, 0, 300
+      hlep1pt2[iEBorEE].push_back( new TH1D(Form("hlep1pt2_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",125,500,3000) );
+      hlep2pt[iEBorEE].push_back( new TH1D(Form("hlep2pt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",40,0,80) );
+      hbosonpt[iEBorEE].push_back( new TH1D(Form("hbosonpt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",40,0,40) );
+      hlep1relIso04[iEBorEE].push_back( new TH1D(Form("hlep1relIso04_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
+      hlep1relIso04_noCut[iEBorEE].push_back( new TH1D(Form("hlep1relIso04_noCut_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
+      hrecoil[iEBorEE].push_back( new TH1D(Form("hrecoil_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",40,0,40) );
+      hdxy[iEBorEE].push_back( new TH1D(Form("hdxy_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",40,0,0.1) );
+      hdphiLepMet[iEBorEE].push_back( new TH1D(Form("hdphiLepMet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",32,0,3.2) );
+
+      // TH2
+      h2_mT_lep1pt[iEBorEE].push_back( new TH2D(Form("h2_mT_lep1pt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 112,24,80) );
+      h2_mT_pfmet[iEBorEE].push_back( new TH2D(Form("h2_mT_pfmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 120,0,300) );
+      h2_mT_tkmet[iEBorEE].push_back( new TH2D(Form("h2_mT_tkmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 120,0,300) );
+      h2_mT_bosonPt[iEBorEE].push_back( new TH2D(Form("h2_mT_bosonPt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 40,0,40) );
+      h2_mT_lep1relIso04[iEBorEE].push_back( new TH2D(Form("h2_mT_lep1relIso04_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04) );
+      h2_lep1pt_pfmet[iEBorEE].push_back( new TH2D(Form("h2_lep1pt_pfmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",112,24,80, 120,0,300) );
+      h2_lep1pt_tkmet[iEBorEE].push_back( new TH2D(Form("h2_lep1pt_tkmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",112,24,80, 120,0,300) );
+      h2_lep1pt_bosonPt[iEBorEE].push_back( new TH2D(Form("h2_lep1pt_bosonPt_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",112,24,80, 40,0,40) );
+      h2_lep1pt_lep1relIso04[iEBorEE].push_back( new TH2D(Form("h2_lep1pt_lep1relIso04_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",112,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04) );
+      h2_pfmet_tkmet[iEBorEE].push_back( new TH2D(Form("h2_pfmet_tkmet_%s_%s",subDetId[iEBorEE].c_str(),charge[icharge].c_str()),"",120,0,300, 120,0,300) );
+
+    }
+
     // TH1
-    hmT.push_back( new TH1D(Form("hmT_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax) );
-    hmT2over4.push_back( new TH1D(Form("hmT2over4_%s",charge[icharge].c_str()),"",nMt2over4Bins, mt2over4Min, mt2over4Max) );
-    hpfmet.push_back( new TH1D(Form("hpfmet_%s",charge[icharge].c_str()),"",60,0,300) );
-    htkmet.push_back( new TH1D(Form("htkmet_%s",charge[icharge].c_str()),"",60,0,300) );
-    hlep1pt.push_back( new TH1D(Form("hlep1pt_%s",charge[icharge].c_str()),"",112,24,80) );  //60, 0, 300
-    hlep1pt2.push_back( new TH1D(Form("hlep1pt2_%s",charge[icharge].c_str()),"",125,500,3000) );
-    hlep1eta.push_back( new TH1D(Form("hlep1eta_%s",charge[icharge].c_str()),"",48,-2.4,2.4) );  //60, 0, 300
-    hlep2pt.push_back( new TH1D(Form("hlep2pt_%s",charge[icharge].c_str()),"",40,0,80) );
-    hbosonpt.push_back( new TH1D(Form("hbosonpt_%s",charge[icharge].c_str()),"",40,0,40) );
-    hlep1relIso04.push_back( new TH1D(Form("hlep1relIso04_%s",charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
-    hlep1relIso04_noCut.push_back( new TH1D(Form("hlep1relIso04_noCut_%s",charge[icharge].c_str()),"",nBins_lepIso04,min_lepIso04,max_lepIso04) );
-    hrecoil.push_back( new TH1D(Form("hrecoil_%s",charge[icharge].c_str()),"",40,0,40) );
-    hdxy.push_back( new TH1D(Form("hdxy_%s",charge[icharge].c_str()),"",40,0,0.1) );
-    hdphiLepMet.push_back( new TH1D(Form("hdphiLepMet_%s",charge[icharge].c_str()),"",32,0,3.2) );
+    hlep1eta.push_back( new TH1D(Form("hlep1eta_%s",charge[icharge].c_str()),"",48,-2.5,2.5) );  //60, 0, 300
     hnVert.push_back( new TH1D(Form("hnVert_%s",charge[icharge].c_str()),"",50,0.5,50.5) );
     hrho.push_back( new TH1D(Form("hrho_%s",charge[icharge].c_str()),"",100,0,50) );
 
@@ -303,21 +328,10 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     }
 
     //TH2
-    h2_mT_lep1pt.push_back( new TH2D(Form("h2_mT_lep1pt_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 112,24,80) );
-    h2_mT_lep1eta.push_back( new TH2D(Form("h2_mT_lep1eta_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 48, -2.4, 2.4) );
-    h2_mT_pfmet.push_back( new TH2D(Form("h2_mT_pfmet_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 60,0,300) );
-    h2_mT_tkmet.push_back( new TH2D(Form("h2_mT_tkmet_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 60,0,300) );
-    h2_mT_bosonPt.push_back( new TH2D(Form("h2_mT_bosonPt_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 30,0,30) );
-    h2_mT_lep1relIso04.push_back( new TH2D(Form("h2_mT_lep1relIso04_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, nBins_lepIso04,min_lepIso04,max_lepIso04) );
-    h2_mT_nVert.push_back( new TH2D(Form("h2_mT_nVert_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 50, 0.5, 50.5) );
-    h2_lep1pt_lep1eta.push_back( new TH2D(Form("h2_lep1pt_lep1eta_%s",charge[icharge].c_str()),"",112,24,80, 48, -2.4, 2.4) );
-    h2_lep1pt_pfmet.push_back( new TH2D(Form("h2_lep1pt_pfmet_%s",charge[icharge].c_str()),"",112,24,80, 60,0,300) );
-    h2_lep1pt_tkmet.push_back( new TH2D(Form("h2_lep1pt_tkmet_%s",charge[icharge].c_str()),"",112,24,80, 60,0,300) );
-    h2_lep1pt_bosonPt.push_back( new TH2D(Form("h2_lep1pt_bosonPt_%s",charge[icharge].c_str()),"",112,24,80, 30,0,30) );
-    h2_lep1pt_lep1relIso04.push_back( new TH2D(Form("h2_lep1pt_lep1relIso04_%s",charge[icharge].c_str()),"",112,24,80, nBins_lepIso04,min_lepIso04,max_lepIso04) );
+    h2_lep1pt_lep1eta.push_back( new TH2D(Form("h2_lep1pt_lep1eta_%s",charge[icharge].c_str()),"",112,24,80, 48, -2.5, 2.5) );
     h2_lep1pt_nVert.push_back( new TH2D(Form("h2_lep1pt_nVert_%s",charge[icharge].c_str()),"",112,24,80, 50,0.5,50.5) );
-    h2_pfmet_tkmet.push_back( new TH2D(Form("h2_pfmet_tkmet_%s",charge[icharge].c_str()),"",60,0,300, 60,0,300) );
-
+    h2_mT_lep1eta.push_back( new TH2D(Form("h2_mT_lep1eta_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 48, -2.5, 2.5) );
+    h2_mT_nVert.push_back( new TH2D(Form("h2_mT_nVert_%s",charge[icharge].c_str()),"",nMtBins, mtMin, mtMax, 50, 0.5, 50.5) );
 
   }
 
@@ -573,6 +587,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   long int nTotal = chain->GetEntries();
   long int nEvents = 0;
 
+  Int_t EBorEE = -1;
+
   Bool_t negativeLeptonHasPassedSelection = false;
   Bool_t positiveLeptonHasPassedSelection = false;
 
@@ -675,6 +691,9 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       if (*HLT_SingleMu == 0) continue;
       if ( lep_tightId[0] < lepTightIdThreshold ) continue;   // tight ID
 
+      if (fabs(lep_eta[0]) < 1.2) EBorEE = 0;
+      else EBorEE = 1;
+
     } else {
 
       //if (*HLT_SingleEl == 0) continue;
@@ -684,6 +703,10 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       if ( lep_tightId[0] < lepTightIdThreshold ) continue;   // tight ID
       if ( lep_lostHits[0] > 1 ) continue;
       if ( lep_convVeto[0] == 0) continue;
+
+      if (fabs(lep_eta[0]) < 1.479) EBorEE = 0;
+      else EBorEE = 1;
+
 
     }
 
@@ -852,23 +875,24 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     }
     /////////////////////////////////////
 
-    fillTH1(hlep1relIso04_noCut[chargeIndex],(Double_t) lep_relIso04[0], wgt);
+    fillTH1(hlep1relIso04_noCut[EBorEE][chargeIndex],(Double_t) lep_relIso04[0], wgt);
 
     if (not passIsoSel) continue;
 
-    fillTH1(hmT[chargeIndex],(Double_t) mT, wgt);
-    fillTH1(hmT2over4[chargeIndex],(Double_t) mT2over4, wgt);
-    fillTH1(hpfmet[chargeIndex],(Double_t) pfmet2D.Mod(), wgt);
-    fillTH1(htkmet[chargeIndex],(Double_t) tkmet2D.Mod(), wgt);
-    fillTH1(hlep1pt[chargeIndex],(Double_t) lep1pt, wgt);
-    fillTH1(hlep1pt2[chargeIndex],(Double_t) lep1pt2, wgt);
+    fillTH1(hmT[EBorEE][chargeIndex],(Double_t) mT, wgt);
+    fillTH1(hmT2over4[EBorEE][chargeIndex],(Double_t) mT2over4, wgt);
+    fillTH1(hpfmet[EBorEE][chargeIndex],(Double_t) pfmet2D.Mod(), wgt);
+    fillTH1(htkmet[EBorEE][chargeIndex],(Double_t) tkmet2D.Mod(), wgt);
+    fillTH1(hlep1pt[EBorEE][chargeIndex],(Double_t) lep1pt, wgt);
+    fillTH1(hlep1pt2[EBorEE][chargeIndex],(Double_t) lep1pt2, wgt);
+    fillTH1(hlep2pt[EBorEE][chargeIndex],(Double_t) metReco.Mod(), wgt);
+    fillTH1(hbosonpt[EBorEE][chargeIndex],(Double_t) bosonReco.Mod(), wgt);
+    fillTH1(hlep1relIso04[EBorEE][chargeIndex],(Double_t) lep_relIso04[0], wgt);
+    fillTH1(hrecoil[EBorEE][chargeIndex], recoilReco.Mod(), wgt);
+    fillTH1(hdxy[EBorEE][chargeIndex],lep_dxy[0], wgt);
+    fillTH1(hdphiLepMet[EBorEE][chargeIndex], dphiLepMet, wgt);
+
     fillTH1(hlep1eta[chargeIndex],(Double_t) lep1Reco.Eta(), wgt);
-    fillTH1(hlep2pt[chargeIndex],(Double_t) metReco.Mod(), wgt);
-    fillTH1(hbosonpt[chargeIndex],(Double_t) bosonReco.Mod(), wgt);
-    fillTH1(hlep1relIso04[chargeIndex],(Double_t) lep_relIso04[0], wgt);
-    fillTH1(hrecoil[chargeIndex], recoilReco.Mod(), wgt);
-    fillTH1(hdxy[chargeIndex],lep_dxy[0], wgt);
-    fillTH1(hdphiLepMet[chargeIndex], dphiLepMet, wgt);
     fillTH1(hnVert[chargeIndex], *nVert, wgt);
     fillTH1(hrho[chargeIndex], *rho, wgt);
 
@@ -888,20 +912,22 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     //   }
     // }      
 
-    fillTH2(h2_mT_lep1pt[chargeIndex], mT, lep1pt, wgt);
-    fillTH2(h2_mT_lep1eta[chargeIndex], mT, lep_eta[0], wgt);
-    fillTH2(h2_mT_pfmet[chargeIndex], mT, pfmet2D.Mod(), wgt);
-    fillTH2(h2_mT_tkmet[chargeIndex], mT, tkmet2D.Mod(), wgt);
-    fillTH2(h2_mT_bosonPt[chargeIndex], mT, bosonReco.Mod(), wgt);
-    fillTH2(h2_mT_lep1relIso04[chargeIndex], mT, lep_relIso04[0], wgt);
-    fillTH2(h2_mT_nVert[chargeIndex], mT, *nVert, wgt);
+    fillTH2(h2_mT_lep1pt[EBorEE][chargeIndex], mT, lep1pt, wgt);
+    fillTH2(h2_mT_pfmet[EBorEE][chargeIndex], mT, pfmet2D.Mod(), wgt);
+    fillTH2(h2_mT_tkmet[EBorEE][chargeIndex], mT, tkmet2D.Mod(), wgt);
+    fillTH2(h2_mT_bosonPt[EBorEE][chargeIndex], mT, bosonReco.Mod(), wgt);
+    fillTH2(h2_mT_lep1relIso04[EBorEE][chargeIndex], mT, lep_relIso04[0], wgt);
+    fillTH2(h2_lep1pt_pfmet[EBorEE][chargeIndex], lep1pt, pfmet2D.Mod(), wgt);
+    fillTH2(h2_lep1pt_tkmet[EBorEE][chargeIndex], lep1pt, tkmet2D.Mod(), wgt);
+    fillTH2(h2_lep1pt_bosonPt[EBorEE][chargeIndex], lep1pt, bosonReco.Mod(), wgt);
+    fillTH2(h2_lep1pt_lep1relIso04[EBorEE][chargeIndex], lep1pt, lep_relIso04[0], wgt);
+    fillTH2(h2_pfmet_tkmet[EBorEE][chargeIndex], pfmet2D.Mod(), tkmet2D.Mod(), wgt); 
+
     fillTH2(h2_lep1pt_lep1eta[chargeIndex], lep1pt, lep_eta[0], wgt);
-    fillTH2(h2_lep1pt_pfmet[chargeIndex], lep1pt, pfmet2D.Mod(), wgt);
-    fillTH2(h2_lep1pt_tkmet[chargeIndex], lep1pt, tkmet2D.Mod(), wgt);
-    fillTH2(h2_lep1pt_bosonPt[chargeIndex], lep1pt, bosonReco.Mod(), wgt);
-    fillTH2(h2_lep1pt_lep1relIso04[chargeIndex], lep1pt, lep_relIso04[0], wgt);
     fillTH2(h2_lep1pt_nVert[chargeIndex], lep1pt, *nVert, wgt);
-    fillTH2(h2_pfmet_tkmet[chargeIndex], pfmet2D.Mod(), tkmet2D.Mod(), wgt); 
+    fillTH2(h2_mT_lep1eta[chargeIndex], mT, lep_eta[0], wgt);
+    fillTH2(h2_mT_nVert[chargeIndex], mT, *nVert, wgt);
+
 
     // if (not isMuon) {
     //   fillTH1(hlep1sigIetaIeta,(Double_t) lep_sigmaIetaIeta[0], wgt);
