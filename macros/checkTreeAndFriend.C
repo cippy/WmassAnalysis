@@ -51,7 +51,7 @@ string getNewString(const string& strToModify, const string& match, const string
 }
 
 
-Long64_t readTree(const string& fname, const string& sampleName, const string& whichTree = "base", const string& baseTreeName = "") {
+Long64_t readTree(const string& fname, const string& sampleName, const string& whichTree = "base", const string& treePath = "tree") {
 
   // which tree can be "base", "evVarFriend", "sfFriend"
   
@@ -60,10 +60,10 @@ Long64_t readTree(const string& fname, const string& sampleName, const string& w
     cout << "Missing " << whichTree << " file ==> " << sampleName << endl;
     return -1;
   } else {
-    string treePath = "tree"; // dafault, overwritten below
-    if (whichTree == "base" && baseTreeName != "") treePath = baseTreeName;
-    if (whichTree == "evVarFriend") treePath = "mjvars/t";
-    if (whichTree == "sfFriend") treePath = "sf/t";
+    // string treePath = "tree"; // dafault, overwritten below
+    // if (whichTree == "base" && baseTreeName != "") treePath = baseTreeName;
+    // if (whichTree == "evVarFriend") treePath = "mjvars/t";
+    // if (whichTree == "sfFriend") treePath = "sf/t";
     TTree* intree = (TTree*) infile->Get(treePath.c_str());
     if (!intree) {
       cout << "Missing " << whichTree << " tree ==> " << sampleName << endl;
@@ -84,7 +84,12 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
 	     const string& treeName         = "treeProducerWMassEle", 
 	     const string& evVarFriend_path = "friends/",
 	     const Int_t   has_sfFriend     = 0,
-	     const string& sfFriend_path    = "friends/") 
+	     const string& sfFriend_path    = "friends/",
+	     const string& evVarFriend_prefix = "evVarFriend", // prefix of root file name
+	     const string& evVarFriend_treeName = "mjvars/t",  // tree name inside file (with path if it is in a folder)
+	     const string& sfFriend_prefix = "sfFriend",
+	     const string& sfFriend_treeName = "sf/t") 
+
 {
 
   // dirPatternTag says if base tree are to be taken inside /treeProducerDarkMatterMonoJet/ folder or if their name has just 'treeProducerDarkMatterMonoJet'
@@ -106,8 +111,8 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
 
 
   string infileName         = path +                                     sampleName + dirPattern + treeFileName;  // cout << "infileName --> " << infileName << endl;
-  string infileFriendName   = path + evVarFriend_path + "evVarFriend_" + sampleName +                  ".root";
-  string infileSfFriendName = path + sfFriend_path    + "sfFriend_"    + sampleName +                  ".root";
+  string infileFriendName   = path + evVarFriend_path + evVarFriend_prefix + "_" + sampleName + ".root";
+  string infileSfFriendName = path + sfFriend_path    + sfFriend_prefix    + "_" + sampleName + ".root";
   
   Long64_t nentries = -1;
   Long64_t nentriesFriend = -1;
@@ -118,25 +123,9 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
   cout << sampleName << endl;
   cout << "----------------------" << endl;
   
-  nentries                           = readTree(infileName,        sampleName,"base", treeName);
-  // try to manage the fact that sometimes the tree is named "tree" and is inside tree.root file despite the fact that "treePatternTag = treeProducerWMassEle"
-  // usually "treePatternTag = treeProducerWMassEle" --> "infileName = /.../treeProducerWMassEle_tree.root" and "treeName = tree"  
-  // if (nentries == -1 && treeName == "treeProducerWMassEle") {
-  //   cout << "\n#######\n";
-  //   cout << "### WARNING: attempt to open file 'treeProducerWMassEle_tree.root' looking for TTree named 'treeProducerWMassEle' was unsuccessful.\n";
-  //   cout << "### Trying again with 'infileName = tree.root' and 'treeName = tree' ...\n";
-  //   // setting again parameters
-  //   dirPattern = dirPatternInit;
-  //   infileName = path + sampleName + dirPattern + "tree.root";
-  //   treeName = "tree";
-  //   // check again with new parameters
-  //   cout << "#######\n" << endl;
-  //   nentries = readTree(infileName, sampleName, "base", treeName);
-  //   // if (nentries >= 0) cout << "File and tree read successfully!" << endl;
-  // }
-
-  nentriesFriend                     = readTree(infileFriendName,  sampleName,"evVarFriend");
-  if (has_sfFriend) nentriesSfFriend = readTree(infileSfFriendName,sampleName,"sfFriend");
+  nentries                           = readTree(infileName, sampleName, "base", treeName);
+  nentriesFriend                     = readTree(infileFriendName, sampleName, "evVarFriend", evVarFriend_treeName);
+  if (has_sfFriend) nentriesSfFriend = readTree(infileSfFriendName,sampleName, "sfFriend", sfFriend_treeName);
 
   if (nentries >= 0 && nentriesFriend >= 0 && nentries != nentriesFriend) {
     cout << sampleName << " ==> different nentries with evVarFriend" << endl;
@@ -156,22 +145,22 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
  
   if (newSampleName != sampleName) {
 
-    string newInfileName         = path +                                     newSampleName + dirPattern + treeFileName;
-    string newInfileFriendName   = path + evVarFriend_path + "evVarFriend_" + newSampleName +                  ".root";
-    string newInfileSfFriendName = path + sfFriend_path    + "sfFriend_"    + newSampleName +                  ".root";
+    string newInfileName         = path +                                               newSampleName + dirPattern + treeFileName;
+    string newInfileFriendName   = path + evVarFriend_path + evVarFriend_prefix + "_" + newSampleName + ".root";
+    string newInfileSfFriendName = path + sfFriend_path    + sfFriend_prefix    + "_" + newSampleName + ".root";
 
     cout << endl;
     
     if ( nentries == -1 && fileExists(newInfileName) ) {
 
       cout << "Found base file with similar name ==> " << newSampleName << endl;  
-      nentries = readTree(newInfileName, newSampleName,"base", treeName);
+      nentries = readTree(newInfileName, newSampleName, "base", treeName);
 
     }
     
     if ( nentriesFriend == -1 && fileExists(newInfileFriendName) ) {
       cout << "Found evVarFriend file with similar name ==> " << newSampleName << endl;  
-      nentriesFriend = readTree(newInfileFriendName,newSampleName,"evVarFriend");
+      nentriesFriend = readTree(newInfileFriendName,newSampleName,"evVarFriends",evVarFriend_treeName);
       if (nentries >= 0 && nentriesFriend >= 0 && nentries != nentriesFriend) {
 	cout << newSampleName << " ==> different nentries with evVarFriend" << endl;
       }
@@ -181,7 +170,7 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
     if ( nentriesSfFriend == -1 && fileExists(newInfileSfFriendName) ) {
 
       cout << "Found sfFriend file with similar name ==> " << newSampleName << endl;  
-      if (has_sfFriend) nentriesSfFriend = readTree(newInfileSfFriendName,newSampleName,"sfFriend");
+      if (has_sfFriend) nentriesSfFriend = readTree(newInfileSfFriendName,newSampleName,"sfFriend",sfFriend_treeName);
       if (has_sfFriend && nentries >= 0 && nentriesSfFriend >= 0 && nentries != nentriesSfFriend) {
 	cout << newSampleName << " ==> different nentries with sfFriend" << endl;
       }
@@ -201,25 +190,35 @@ void doCheck(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
 // you can store the output inside a file. 
 // to use from terminal and change inputs:
 // root -l -b -q  'checkTreeAndFriend.C++("/u2/emanuele/","TREES_MET_80X_V4/", "/", "treeProducerDarkMatterMonoJet", "friends_VM/", 1, "friends/")'
+// if trees are on eos, use path = "root://eoscms//eos/cms/store/bla/bla/"
 
 void checkTreeAndFriend(const string& path             = "/u2/emanuele/TREES_1LEP_53X_V2/",
-			const string& dirPattern       = "/treeProducerWMassEle/",			
-			const string& treeFileName     = "treeProducerWMassEle_tree.root",
-			const string& treeName         = "treeProducerWMassEle",
+			const string& dirPattern       = "/treeProducerWMass/",			
+			const string& treeFileName     = "tree.root",
+			const string& treeName         = "tree",
 			const string& evVarFriend_path = "friends/", 
-			const Int_t   has_sfFriend     = 1,             // pass 0 if no sfFriend trees are used for MC (data will automatically use 0 in doCheck())
-			const string& sfFriend_path    = "friends/")
+			const Int_t   has_sfFriend     = 0, // pass 0 if no sfFriend trees are used for MC (data automatically use 0 in doCheck())
+			const string& sfFriend_path    = "friends/",
+			const string& evVarFriend_prefix   = "tree_Friend", // prefix of root file name
+			const string& evVarFriend_treeName = "Friends",  // tree name inside file (with path if it is in a folder)
+			const string& sfFriend_prefix      = "sfFriend",
+			const string& sfFriend_treeName    = "sf/t")		  
+  
 {
 
-  // dirPatternTag says if base tree are to be taken inside /treeProducerDarkMatterMonoJet/ folder or if their name has just 'treeProducerDarkMatterMonoJet'
+
+
+  // dirPattern says if base tree are to be taken inside /treeProducerDarkMatterMonoJet/ folder or if the tree's name has just 'treeProducerDarkMatterMonoJet' in it
   // e.g. , can have:
   // <path>/QCD/treeProducerDarkMatterMonoJet/tree.root
   // or
   // <path>/QCD_treeProducerDarkMatterMonoJet_tree.root
 
-  // evVarFriend_path and sfFriend_path tell say if friends are inside a folder (you pass the name) or at the same level of the base trees (default)
-  // evVarFriend_path can be "", "friends", "friends_SR", "friends_VM" or "friends_VE"
-  // sfFriend_path can be "" or "friends"
+  // it used to be
+  // const string& evVarFriend_prefix   = "evVarFriend", // prefix of root file name
+  // const string& evVarFriend_treeName = "mjvars/t",  // tree name inside file (with path if it is in a folder)
+  // const string& sfFriend_prefix      = "sfFriend",
+  // const string& sfFriend_treeName    = "sf/t")
 
   cout << endl;
   cout << "Tree location: " << path << endl;
@@ -359,22 +358,124 @@ void checkTreeAndFriend(const string& path             = "/u2/emanuele/TREES_1LE
   // sampleNameVector.push_back("QCD_Pt_30to80_bcToE");
 
   // /u2/emanuele/TREES_1LEP_53X_V2/
-  sampleNameVector.push_back("DYJetsM50");
-  sampleNameVector.push_back("QCDMuPt15");
-  sampleNameVector.push_back("TTJets");
-  sampleNameVector.push_back("Tbarsch");
-  sampleNameVector.push_back("TbartW");
-  sampleNameVector.push_back("Tbartch");
-  sampleNameVector.push_back("Tsch");
-  sampleNameVector.push_back("TtW");
-  sampleNameVector.push_back("Ttch");
-  sampleNameVector.push_back("WJets");
-  sampleNameVector.push_back("WWJets");
-  sampleNameVector.push_back("WZJets");
+  // sampleNameVector.push_back("DYJetsM50");
+  // sampleNameVector.push_back("QCDMuPt15");
+  // sampleNameVector.push_back("TTJets");
+  // sampleNameVector.push_back("Tbarsch");
+  // sampleNameVector.push_back("TbartW");
+  // sampleNameVector.push_back("Tbartch");
+  // sampleNameVector.push_back("Tsch");
+  // sampleNameVector.push_back("TtW");
+  // sampleNameVector.push_back("Ttch");
+  // sampleNameVector.push_back("WJets");
+  // sampleNameVector.push_back("WWJets");
+  // sampleNameVector.push_back("WZJets");
 
+
+  // /eos/cms/store/group/dpg_ecal/comm_ecal/localreco/TREES_1LEP_80X_V3/
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part1");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part10");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part11");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part2");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part3");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part4");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part5");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part6");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part7");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part8");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part9");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part1");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part2");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part3");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part4");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part5");
+  sampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part6");
+  sampleNameVector.push_back("DYJetsToLL_M50_part1");
+  sampleNameVector.push_back("DYJetsToLL_M50_part2");
+  sampleNameVector.push_back("QCD_Mu15_part1");
+  sampleNameVector.push_back("QCD_Mu15_part2");
+  sampleNameVector.push_back("QCD_Pt1000toInf_Mu5");
+  sampleNameVector.push_back("QCD_Pt120to170_Mu5");
+  sampleNameVector.push_back("QCD_Pt15to20_Mu5");
+  sampleNameVector.push_back("QCD_Pt170to300_Mu5");
+  sampleNameVector.push_back("QCD_Pt170to300_Mu5_ext");
+  sampleNameVector.push_back("QCD_Pt20to30_EMEnriched");
+  sampleNameVector.push_back("QCD_Pt20to30_Mu5");
+  sampleNameVector.push_back("QCD_Pt300to470_Mu5");
+  sampleNameVector.push_back("QCD_Pt300to470_Mu5_ext");
+  sampleNameVector.push_back("QCD_Pt300to470_Mu5_ext2");
+  sampleNameVector.push_back("QCD_Pt30to50_EMEnriched");
+  sampleNameVector.push_back("QCD_Pt30to50_EMEnriched_ext");
+  sampleNameVector.push_back("QCD_Pt30to50_Mu5");
+  sampleNameVector.push_back("QCD_Pt470to600_Mu5_ext");
+  sampleNameVector.push_back("QCD_Pt50to80_EMEnriched_ext");
+  sampleNameVector.push_back("QCD_Pt50to80_Mu5");
+  sampleNameVector.push_back("QCD_Pt600to800_Mu5");
+  sampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext2");
+  sampleNameVector.push_back("QCD_Pt80to120_EMEnriched_ext");
+  sampleNameVector.push_back("QCD_Pt80to120_Mu5");
+  sampleNameVector.push_back("QCD_Pt80to120_Mu5_ext");
+  sampleNameVector.push_back("TBar_tWch_ext");
+  sampleNameVector.push_back("TBar_tch_powheg_part1");
+  sampleNameVector.push_back("TBar_tch_powheg_part2");
+  sampleNameVector.push_back("TBar_tch_powheg_part3");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part1");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part2");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part3");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part4");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part5");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part6");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part7");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part8");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part9");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_part1");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromT_part2");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part1");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part2");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part3");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part4");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part5");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part1");
+  sampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part2");
+  sampleNameVector.push_back("TToLeptons_sch_amcatnlo");
+  sampleNameVector.push_back("T_tWch_ext");
+  sampleNameVector.push_back("T_tch_powheg_part1");
+  sampleNameVector.push_back("T_tch_powheg_part2");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part1");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part10");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part2");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part3");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part4");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part5");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part6");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part7");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part8");
+  sampleNameVector.push_back("WJetsToLNu_LO_ext_part9");
+  sampleNameVector.push_back("WJetsToLNu_LO_part1");
+  sampleNameVector.push_back("WJetsToLNu_LO_part2");
+  sampleNameVector.push_back("WJetsToLNu_LO_part3");
+  sampleNameVector.push_back("WJetsToLNu_LO_part4");
+  sampleNameVector.push_back("WJetsToLNu_LO_part5");
+  sampleNameVector.push_back("WJetsToLNu_LO_part6");
+  sampleNameVector.push_back("WJetsToLNu_part1");
+  sampleNameVector.push_back("WJetsToLNu_part2");
+  sampleNameVector.push_back("WJetsToLNu_part3");
+  sampleNameVector.push_back("WJetsToLNu_part4");
+  sampleNameVector.push_back("WJetsToLNu_part5");
+  sampleNameVector.push_back("WJetsToLNu_part6");
+  sampleNameVector.push_back("WJetsToLNu_part7");
+  sampleNameVector.push_back("WW");
+  sampleNameVector.push_back("WW_ext");
+  sampleNameVector.push_back("WZ");
+  sampleNameVector.push_back("WZ_ext");
+  sampleNameVector.push_back("ZZ");
+  sampleNameVector.push_back("ZZ_ext");
 
   for (UInt_t i = 0; i < sampleNameVector.size(); i++) {
-    doCheck(path, sampleNameVector[i], dirPattern, treeFileName, treeName, evVarFriend_path, has_sfFriend, sfFriend_path);
+    doCheck(path, sampleNameVector[i], dirPattern, treeFileName, treeName, 
+	    evVarFriend_path, has_sfFriend, sfFriend_path, 
+	    evVarFriend_prefix, evVarFriend_treeName,
+	    sfFriend_prefix, sfFriend_treeName);
   }
 
   ////////
@@ -410,25 +511,100 @@ void checkTreeAndFriend(const string& path             = "/u2/emanuele/TREES_1LE
    // sampleNameDataVector.push_back("DoubleEG_Run2016H_PromptReco_v3_runs_284036_284044");
 
    // /u2/emanuele/TREES_1LEP_53X_V2/
-   sampleNameDataVector.push_back("DoubleElectronAB");
-   sampleNameDataVector.push_back("DoubleElectronC");
-   sampleNameDataVector.push_back("DoubleElectronD");
-   sampleNameDataVector.push_back("DoubleMuAB");
-   sampleNameDataVector.push_back("DoubleMuC");
-   sampleNameDataVector.push_back("DoubleMuD");
-   sampleNameDataVector.push_back("MuEGAB");
-   sampleNameDataVector.push_back("MuEGC");
-   sampleNameDataVector.push_back("MuEGD");
-   sampleNameDataVector.push_back("SingleElectronAB");
-   sampleNameDataVector.push_back("SingleElectronC");
-   sampleNameDataVector.push_back("SingleElectronD");
-   sampleNameDataVector.push_back("SingleMuAB");
-   sampleNameDataVector.push_back("SingleMuC");
-   sampleNameDataVector.push_back("SingleMuD");
+   // sampleNameDataVector.push_back("DoubleElectronAB");
+   // sampleNameDataVector.push_back("DoubleElectronC");
+   // sampleNameDataVector.push_back("DoubleElectronD");
+   // sampleNameDataVector.push_back("DoubleMuAB");
+   // sampleNameDataVector.push_back("DoubleMuC");
+   // sampleNameDataVector.push_back("DoubleMuD");
+   // sampleNameDataVector.push_back("MuEGAB");
+   // sampleNameDataVector.push_back("MuEGC");
+   // sampleNameDataVector.push_back("MuEGD");
+   // sampleNameDataVector.push_back("SingleElectronAB");
+   // sampleNameDataVector.push_back("SingleElectronC");
+   // sampleNameDataVector.push_back("SingleElectronD");
+   // sampleNameDataVector.push_back("SingleMuAB");
+   // sampleNameDataVector.push_back("SingleMuC");
+   // sampleNameDataVector.push_back("SingleMuD");
 
+  // /eos/cms/store/group/dpg_ecal/comm_ecal/localreco/TREES_1LEP_80X_V3/
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part10");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part11");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part12");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part8");
+  sampleNameDataVector.push_back("SingleElectron_Run2016B_part9");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016C_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part10");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part11");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part8");
+  sampleNameDataVector.push_back("SingleElectron_Run2016D_part9");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016E_part8");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016F_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part10");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part11");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part12");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part13");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part8");
+  sampleNameDataVector.push_back("SingleElectron_Run2016G_part9");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part1");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part10");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part11");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part12");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part13");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part14");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part2");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part3");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part4");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part5");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part6");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part7");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part8");
+  sampleNameDataVector.push_back("SingleElectron_Run2016H_part9");
 
   for (UInt_t i = 0; i < sampleNameDataVector.size(); i++) {
-    doCheck(path, sampleNameDataVector[i], dirPattern, treeFileName, treeName, evVarFriend_path, 0, sfFriend_path);
+    doCheck(path, sampleNameDataVector[i], dirPattern, treeFileName, treeName,
+	    evVarFriend_path, 0, sfFriend_path, 
+	    evVarFriend_prefix, evVarFriend_treeName,
+	    sfFriend_prefix, sfFriend_treeName);
   }
 
 
