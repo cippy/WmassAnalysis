@@ -82,7 +82,14 @@ using namespace std;
 static string PhpToCopy = "/afs/cern.ch/user/m/mciprian/www/index.php";
 
 // define sample
-enum class Sample {data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, wjets, wenujets, wmunujets, wtaunujets, zjets, qcd_mu, qcd_ele, top, diboson, qcd_ele_fake, qcd_mu_fake};
+enum class Sample {
+  data_doubleEG, data_singleEG, data_doubleMu, data_singleMu, 
+    wjets, wenujets, wmunujets, wtaunujets, zjets,
+    wjets_LO, wenujets_LO, wmunujets_LO, wtaunujets_LO, zjets_LO,
+    qcd_mu, qcd_ele, qcd_ele_fake, qcd_mu_fake, 
+    top, diboson
+    };
+
 enum LepFlavour {electron = 11, muon = 13, tau = 15};
 
 // moved to centerOfMassEnergy.h
@@ -169,25 +176,120 @@ public:
 
 };
 
+//=======================================
+
+
+class eleIdWorkingPoint {
+
+public:
+ eleIdWorkingPoint(const Double_t & dxy,
+		   const Double_t & dz,
+		   const Double_t & relIso04,
+		   const Int_t    & convVeto,
+		   const Int_t    & maxMissingHits,
+		   const Int_t    & cutBasedId
+		   ) 
+   {
+     dxy_ = dxy;
+     dz_ = dz;
+     relIso04_ = relIso04;
+     convVeto_ = convVeto;
+     maxMissingHits_ = maxMissingHits;
+     cutBasedId_ = cutBasedId;
+   }
+ 
+  ~eleIdWorkingPoint(){};
+  
+  void setDxy(           const Double_t dxy)         { dxy_ = dxy;                       };
+  void setDz(            const Double_t dz)          { dz_ = dz;                         };
+  void setRelIso04(      const Double_t relIso04)    { relIso04_ = relIso04;             };
+  void setConvVeto(      const Int_t convVeto)       { convVeto_ = convVeto;             };
+  void setMaxMissingHits(const Int_t maxMissingHits) { maxMissingHits_ = maxMissingHits; };
+  void setCutBasedId(    const Int_t cutBasedId)     { cutBasedId_ = cutBasedId;         };
+
+  Double_t dxy()            const { return dxy_;            };
+  Double_t dz()             const { return dz_;             };
+  Double_t relIso04()       const { return relIso04_;       };
+  Int_t    convVeto()       const { return convVeto_;       };
+  Int_t    maxMissingHits() const { return maxMissingHits_; };
+  Int_t    cutBasedId()     const { return cutBasedId_;     };
+
+
+private:
+  Double_t dxy_;
+  Double_t dz_;
+  Double_t relIso04_;
+  Int_t    convVeto_;
+  Int_t    maxMissingHits_;
+  Int_t    cutBasedId_;
+
+};
+
+//=============================================
+
+
+class plotManager {
+
+public:
+  plotManager(const string & histName,
+	      const string & xAxisName,
+	      const string & canvasName,
+	      const int    & rebinFactor
+	      ) 
+  {
+    histName_    = histName;
+    xAxisName_   = xAxisName;
+    canvasName_  = canvasName;
+    rebinFactor_ = rebinFactor;
+  };
+
+  ~plotManager() {};
+
+  string getHistName()    const { return histName_;    };
+  string getXaxisName()   const { return xAxisName_;   };
+  string getCanvasName()  const { return canvasName_;  };
+  int    getRebinFactor() const { return rebinFactor_; };
+
+  void setHistName   (const string & histName  )  { histName_    = histName;    };
+  void setXaxisName  (const string & xAxisName )  { xAxisName_   = xAxisName;   };
+  void setCanvasName (const string & canvasName)  { canvasName_  = canvasName;  };  
+  void setRebinFactor(const int    & rebinFactor) { rebinFactor_ = rebinFactor; };
+
+private:
+
+  string histName_;
+  string xAxisName_;
+  string canvasName_;    
+  int    rebinFactor_;
+
+};
+
 
 //======================================================
 
 string getTexLabel(const string& sampleDir = "wjets") {
 
   string label = "";
-  if (sampleDir == "qcd_ele") label = "QCD (electron enriched)";
-  else if (sampleDir == "qcd_mu") label = "QCD (muon enriched)";
-  else if (sampleDir == "wjets") label = "W(l#nu)+jets";
-  else if (sampleDir == "wenujets") label = "W(e#nu)+jets";
-  else if (sampleDir == "wmunujets") label = "W(#mu#nu)+jets";
-  else if (sampleDir == "wtaunujets") label = "W(#tau#nu)+jets";
-  else if (sampleDir == "zjets") label = "Z(ll)+jets";
+  if (sampleDir == "qcd_ele") label = "QCD";
+  else if (sampleDir == "qcd_mu") label = "QCD";
+  else if (sampleDir == "wjets") label = "W(l#nu)+jets (aMC@NLO)";
+  else if (sampleDir == "wenujets") label = "W(e#nu)+jets (aMC@NLO)";
+  else if (sampleDir == "wmunujets") label = "W(#mu#nu)+jets (aMC@NLO)";
+  else if (sampleDir == "wtaunujets") label = "W(#tau#nu)+jets (aMC@NLO)";
+  else if (sampleDir == "wjets_LO") label = "W(l#nu)+jets (MadGraph)";
+  else if (sampleDir == "wenujets_LO") label = "W(e#nu)+jets (MadGraph)";
+  else if (sampleDir == "wmunujets_LO") label = "W(#mu#nu)+jets (MadGraph)";
+  else if (sampleDir == "wtaunujets_LO") label = "W(#tau#nu)+jets (MadGraph)"; 
+  else if (sampleDir == "zjets") label = "Z(ll)+jets (aMC@NLO)";
+  else if (sampleDir == "zjets_LO") label = "Z(ll)+jets (MadGraph)";
   else if (sampleDir == "top") label = "t#bar{t}, single top";
   else if (sampleDir == "diboson") label = "WW, WZ";
   else if (sampleDir == "data_doubleEG") label = "data DoubleEG";
   else if (sampleDir == "data_singleEG") label = "data singleEG";
   else if (sampleDir == "data_doubleMu") label = "data DoubleMu";
   else if (sampleDir == "data_singleMu") label = "data singleMu";
+  else if (sampleDir == "qcd_ele_fake") label = "QCD (fake rate)";
+  else if (sampleDir == "qcd_mu_fake") label = "QCD (fake rate)";
   else {
     cout << "Error in getTexLabel(): directory name " << sampleDir << " unknown, please check. Exit" << endl;
     exit(EXIT_FAILURE);
@@ -204,6 +306,17 @@ void checkPoint(const Int_t& nCheck = 1, const Int_t& checkEveryN = 100000, cons
 
   if(nEvents % checkEveryN == 0) {
     cout << "check "<< nCheck << ": nEvents = " << nEvents << endl;
+    cout << endl;
+  }
+
+}
+
+//======================================================
+
+void checkPoint(const string& message = "", const Int_t& checkEveryN = 100000, const Int_t& nEvents = -1) {
+
+  if(nEvents % checkEveryN == 0) {
+    cout << "check "<< message << ": nEvents = " << nEvents << endl;
     cout << endl;
   }
 
@@ -274,6 +387,8 @@ string getStringFromEnumSample(const Sample& sample = Sample::zjets) {
     return "data_singleMu";
   else if (sample == Sample::zjets)
     return "zjets";
+  else if (sample == Sample::zjets_LO)
+    return "zjets_LO";
   else if (sample == Sample::wjets)
     return "wjets";
   else if (sample == Sample::wenujets)
@@ -282,6 +397,14 @@ string getStringFromEnumSample(const Sample& sample = Sample::zjets) {
     return "wmunujets";
   else if (sample == Sample::wtaunujets)
     return "wtaunujets";
+  else if (sample == Sample::wjets_LO)
+    return "wjets_LO";
+  else if (sample == Sample::wenujets_LO)
+    return "wenujets_LO";
+  else if (sample == Sample::wmunujets_LO)
+    return "wmunujets_LO";
+  else if (sample == Sample::wtaunujets_LO)
+    return "wtaunujets_LO";
   else if (sample == Sample::qcd_mu)
     return "qcd_mu";
   else if (sample == Sample::qcd_ele)
@@ -654,28 +777,28 @@ Int_t findGenPartFromZLL(const Int_t nGenParticles,
 
 //=============================================================                                                                      
 
-Bool_t getAxisRangeFromUser(string& xAxisName, Double_t& xmin, Double_t& xmax, 
-			    const string& xAxisNameTmp = "", 
+Bool_t getAxisRangeFromUser(string& axisName, Double_t& min, Double_t& max, 
+			    const string& axisNameTmp = "", 
 			    const string& separator = "::", 
 			    const string& rangeSeparator = ","
 			    ) {
   
   Bool_t setXAxisRangeFromUser = false;
-  size_t pos = xAxisNameTmp.find(separator);
+  size_t pos = axisNameTmp.find(separator);
     
   if (pos != string::npos) {
     string xrange = "";
     setXAxisRangeFromUser = true;
-    xAxisName.assign(xAxisNameTmp, 0, pos);
-    xrange.assign(xAxisNameTmp, pos + separator.size(), string::npos);
+    axisName.assign(axisNameTmp, 0, pos);
+    xrange.assign(axisNameTmp, pos + separator.size(), string::npos);
     pos = xrange.find(rangeSeparator);
     string numString = "";
     numString.assign(xrange,0,pos);
-    xmin = std::stod(numString);
+    min = std::stod(numString);
     numString.assign(xrange,pos + rangeSeparator.size(), string::npos);
-    xmax = std::stod(numString);
+    max = std::stod(numString);
   } else {
-    xAxisName = xAxisNameTmp;
+    axisName = axisNameTmp;
   }
 
   return setXAxisRangeFromUser;
@@ -1568,22 +1691,37 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
 
 
 void drawCorrelationPlot(TH2* h2D, 
-			 const string & labelX = "xaxis", const string & labelY = "yaxis", 
+			 const string & labelXtmp = "xaxis", const string & labelYtmp = "yaxis", const string & labelZ = "zaxis",  
 			 const string& canvasName = "default", const string& plotLabel = "", const string & outputDIR = "./", 
 			 const Int_t rebinFactorY = 1,
-			 const bool smoothPlot = true)
+			 const Int_t rebinFactorX = 1,
+			 const bool smoothPlot = true,
+			 const bool drawProfileX = true,
+			 const bool scaleToUnitArea = true,
+			 const Int_t draw_both0_noLog1_onlyLog2 = 0)
 {
 
   if (rebinFactorY > 1) h2D->RebinY(rebinFactorY);
+  if (rebinFactorX > 1) h2D->RebinX(rebinFactorX);
+
+  string labelX = "";
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(labelX, xmin, xmax, labelXtmp);
   
-  TCanvas* canvas = new TCanvas("canvas","",600,625);
+  string labelY = "";
+  Double_t ymin = 0;
+  Double_t ymax = 0;
+  Bool_t setYAxisRangeFromUser = getAxisRangeFromUser(labelY, ymin, ymax, labelYtmp);
+
+  TCanvas* canvas = new TCanvas("canvas","",700,625);
+  canvas->SetLeftMargin(0.16);
+  canvas->SetRightMargin(0.20);
   canvas->cd();
 
   system(("mkdir -p "+outputDIR).c_str());
   // normalize to 1
-  canvas->SetRightMargin(0.18);
-
-  h2D->Scale(1./h2D->Integral());
+  if (scaleToUnitArea) h2D->Scale(1./h2D->Integral());
 
   TGraph2D* h2DGraph = NULL;
 
@@ -1605,42 +1743,43 @@ void drawCorrelationPlot(TH2* h2D,
   
   h2DPlot->GetXaxis()->SetTitle(labelX.c_str());
   h2DPlot->GetYaxis()->SetTitle(labelY.c_str());
-  h2DPlot->GetZaxis()->SetTitle("a.u");   
+  if (scaleToUnitArea) h2DPlot->GetZaxis()->SetTitle("a.u");   
+  else h2DPlot->GetZaxis()->SetTitle(labelZ.c_str());
   h2DPlot->Draw("colz");
-  if (labelX == "PF E_{T}^{miss}" && labelY == "tracker E_{T}^{miss}") {
-    cout << "=========================" << endl;
-    cout << "=========================" << endl;
-    cout << "=========================" << endl;
-    cout << "=========================" << endl;
-    cout << "=========================" << endl;
-    h2DPlot->GetXaxis()->SetRangeUser(0,70);
-    h2DPlot->GetYaxis()->SetRangeUser(0,70);
-    h2DPlot->Draw("colz");
-  }
+  if (setXAxisRangeFromUser) h2DPlot->GetXaxis()->SetRangeUser(xmin,xmax);
+  if (setYAxisRangeFromUser) h2DPlot->GetYaxis()->SetRangeUser(ymin,ymax);
 
-  TProfile* h2DProfile = h2D->ProfileX(Form("%s_pfx",h2D->GetName()));
-  h2DProfile->SetMarkerColor(kBlack);
-  h2DProfile->SetMarkerStyle(20);
-  h2DProfile->SetMarkerSize(1);
-  h2DProfile->Draw("EPsame");
+  TProfile* h2DProfile = NULL;
+  if (drawProfileX) {
+    h2DProfile = h2D->ProfileX(Form("%s_pfx",h2D->GetName()));
+    h2DProfile->SetMarkerColor(kBlack);
+    h2DProfile->SetMarkerStyle(20);
+    h2DProfile->SetMarkerSize(1);
+    h2DProfile->Draw("EPsame");
+  }
 
   CMS_lumi(canvas,"",true,false);
   setTDRStyle();
 
-  TLegend leg(0.4,0.6,0.9,0.9);
+  TLegend leg(0.39,0.75,0.89,0.95);
   leg.SetFillStyle(0);
   leg.SetFillColor(0);
   leg.SetBorderSize(0);
-  leg.AddEntry((TObject*)0,plotLabel.c_str(),"");
-  leg.AddEntry((TObject*)0,Form("Correlation = %.2f",h2DPlot->GetCorrelationFactor()),"");
+  leg.SetTextFont(62);
+  if (plotLabel != "") leg.AddEntry((TObject*)0,plotLabel.c_str(),"");
+  if (drawProfileX) leg.AddEntry((TObject*)0,Form("Correlation = %.2f",h2DPlot->GetCorrelationFactor()),"");
   leg.Draw("same");
 
-  canvas->SaveAs((outputDIR + canvasName + ".png").c_str(),"png");
-  canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str(),"pdf");
-  canvas->SetLogz();
-  canvas->SaveAs((outputDIR + canvasName + "_logZ.png").c_str(),"png");
-  canvas->SaveAs((outputDIR + canvasName + "_logZ.pdf").c_str(),"pdf");
-  canvas->SetLogz(0);
+  if (draw_both0_noLog1_onlyLog2 == 0 || draw_both0_noLog1_onlyLog2 == 1) {
+    canvas->SaveAs((outputDIR + canvasName + ".png").c_str(),"png");
+    canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str(),"pdf");
+  }
+  if (draw_both0_noLog1_onlyLog2 == 0 || draw_both0_noLog1_onlyLog2 == 2) {
+    canvas->SetLogz();
+    canvas->SaveAs((outputDIR + canvasName + "_logZ.png").c_str(),"png");
+    canvas->SaveAs((outputDIR + canvasName + "_logZ.pdf").c_str(),"pdf");
+    canvas->SetLogz(0);
+  }
 
   delete canvas;
 
@@ -1933,6 +2072,123 @@ Double_t getXsec13TeV(const string& sample) {
 
 }
 
+//=========================================================
+
+Double_t getSumGenWeightFromSampleName(const string& sample) {
+  
+  // xsec in pb
+  map<string, Double_t> map_sampleName_sumGenWgt;
+
+  // map created with script getSumWeightPerSample.py
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part1"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part10"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part11"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part2"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part3"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part4"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part5"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part6"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part7"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part8"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part9"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part1"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part2"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part3"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part4"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part5"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part6"] = 142209392.0;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_part1"] = 4.4113015039e+11;
+  map_sampleName_sumGenWgt["DYJetsToLL_M50_part2"] = 4.4113015039e+11;
+  map_sampleName_sumGenWgt["QCD_Mu15_part1"] = 12260254.0;
+  map_sampleName_sumGenWgt["QCD_Mu15_part2"] = 12260254.0;
+  map_sampleName_sumGenWgt["QCD_Pt1000toInf_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt120to170_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt15to20_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt170to300_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt170to300_Mu5_ext"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt20to30_EMEnriched"] = 38966443.5421;
+  map_sampleName_sumGenWgt["QCD_Pt20to30_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5_ext"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5_ext2"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt30to50_EMEnriched"] = 38966443.5421;
+  map_sampleName_sumGenWgt["QCD_Pt30to50_EMEnriched_ext"] = 38966443.5421;
+  map_sampleName_sumGenWgt["QCD_Pt30to50_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt470to600_Mu5_ext"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt50to80_EMEnriched_ext"] = 38966443.5421;
+  map_sampleName_sumGenWgt["QCD_Pt50to80_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt600to800_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt800to1000_Mu5_ext2"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt80to120_EMEnriched_ext"] = 38966443.5421;
+  map_sampleName_sumGenWgt["QCD_Pt80to120_Mu5"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt80to120_Mu5_ext"] = 126748460.747;
+  map_sampleName_sumGenWgt["QCD_Pt_170to250_bcToE"] = 57429713.852;
+  map_sampleName_sumGenWgt["QCD_Pt_20to30_bcToE"] = 57429713.852;
+  map_sampleName_sumGenWgt["QCD_Pt_250toInf_bcToE"] = 57429713.852;
+  map_sampleName_sumGenWgt["QCD_Pt_30to80_bcToE"] = 57429713.852;
+  map_sampleName_sumGenWgt["QCD_Pt_80to170_bcToE"] = 57429713.852;
+  map_sampleName_sumGenWgt["TBar_tWch_ext"] = 6481480.0;
+  map_sampleName_sumGenWgt["TBar_tch_powheg_part1"] = 37659712.0;
+  map_sampleName_sumGenWgt["TBar_tch_powheg_part2"] = 37659712.0;
+  map_sampleName_sumGenWgt["TBar_tch_powheg_part3"] = 37659712.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part1"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part2"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part3"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part4"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part5"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part6"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part7"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part8"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part9"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part1"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part2"] = 54512878.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part1"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part2"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part3"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part4"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part5"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part1"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part2"] = 52405916.0;
+  map_sampleName_sumGenWgt["TToLeptons_sch_amcatnlo"] = 3370668.5184;
+  map_sampleName_sumGenWgt["T_tWch_ext"] = 6332490.0;
+  map_sampleName_sumGenWgt["T_tch_powheg_part1"] = 61947468.0;
+  map_sampleName_sumGenWgt["T_tch_powheg_part2"] = 61947468.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part1"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part10"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part2"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part3"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part4"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part5"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part6"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part7"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part8"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part9"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part1"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part2"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part3"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part4"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part5"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_LO_part6"] = 86099951.0;
+  map_sampleName_sumGenWgt["WJetsToLNu_part1"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part2"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part3"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part4"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part5"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part6"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_part7"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WW"] = 6248191.83067;
+  map_sampleName_sumGenWgt["WW_ext"] = 6248191.83067;
+  map_sampleName_sumGenWgt["WZ"] = 3995828.0;
+  map_sampleName_sumGenWgt["WZ_ext"] = 3995828.0;
+  map_sampleName_sumGenWgt["ZZ"] = 1988098.0;
+  map_sampleName_sumGenWgt["ZZ_ext"] = 1988098.0;
+
+  if (sample.find("data") != string::npos || sample.find("fake") != string::npos) 
+    return 1.0;
+  else
+    return map_sampleName_sumGenWgt[sample];
+
+}
 
 //=========================================================
 
@@ -1990,73 +2246,308 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
   } else {
 
     if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
-      subSampleNameVector.push_back("WJetsToLNu");
+      subSampleNameVector.push_back("WJetsToLNu_part1");
+      subSampleNameVector.push_back("WJetsToLNu_part2");
+      subSampleNameVector.push_back("WJetsToLNu_part3");
+      subSampleNameVector.push_back("WJetsToLNu_part4");
+      subSampleNameVector.push_back("WJetsToLNu_part5");
+      subSampleNameVector.push_back("WJetsToLNu_part6");
+      subSampleNameVector.push_back("WJetsToLNu_part7");
+    } else if (sample == Sample::wjets_LO || sample == Sample::wenujets_LO || sample == Sample::wmunujets_LO || sample == Sample::wtaunujets_LO) { 
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part1");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part10");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part2");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part3");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part4");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part5");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part6");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part7");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part8");
+      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part9");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part1");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part2");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part3");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part4");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part5");
+      subSampleNameVector.push_back("WJetsToLNu_LO_part6");
     } else if (sample == Sample::zjets) {
-      subSampleNameVector.push_back("DYJetsToLL_M50");
-    } else if (sample == Sample::data_doubleEG) {
-      subSampleNameVector.push_back("DoubleEG_Run2016B");
-      subSampleNameVector.push_back("DoubleEG_Run2016C");
-      subSampleNameVector.push_back("DoubleEG_Run2016D");
-      subSampleNameVector.push_back("DoubleEG_Run2016E");
-      subSampleNameVector.push_back("DoubleEG_Run2016F");
-      /* subSampleNameVector.push_back("DoubleEG_Run2016G"); */
-      /* subSampleNameVector.push_back("DoubleEG_Run2016H"); */
-    } else if (sample == Sample::data_doubleMu) {
-      subSampleNameVector.push_back("DoubleMu_Run2016B");
-      subSampleNameVector.push_back("DoubleMu_Run2016C");
-      subSampleNameVector.push_back("DoubleMu_Run2016D");
-      subSampleNameVector.push_back("DoubleMu_Run2016E");
-      subSampleNameVector.push_back("DoubleMu_Run2016F");
-      /* subSampleNameVector.push_back("DoubleMu_Run2016G"); */
-      /* subSampleNameVector.push_back("DoubleMu_Run2016H"); */
+      subSampleNameVector.push_back("DYJetsToLL_M50_part1");
+      subSampleNameVector.push_back("DYJetsToLL_M50_part2");
+    } else if (sample == Sample::zjets_LO) {
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part1");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part10");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part11");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part2");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part3");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part4");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part5");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part6");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part7");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part8");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part9");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part1");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part2");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part3");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part4");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part5");
+      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part6");
+    /* } else if (sample == Sample::data_doubleEG) { */
+    /* } else if (sample == Sample::data_doubleMu) { */
     } else if (sample == Sample::data_singleEG) {
-      subSampleNameVector.push_back("SingleElectron_Run2016B");
-      subSampleNameVector.push_back("SingleElectron_Run2016C");
-      subSampleNameVector.push_back("SingleElectron_Run2016D");
-      subSampleNameVector.push_back("SingleElectron_Run2016E");
-      subSampleNameVector.push_back("SingleElectron_Run2016F");
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H"); */
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part1");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part10");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part11");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part12");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part2");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part3");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part4");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part5");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part6");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part7");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part8");
+      subSampleNameVector.push_back("SingleElectron_Run2016B_part9");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part1");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part2");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part3");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part4");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part5");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part6");
+      subSampleNameVector.push_back("SingleElectron_Run2016C_part7");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part1");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part10");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part11");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part2");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part3");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part4");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part5");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part6");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part7");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part8");
+      subSampleNameVector.push_back("SingleElectron_Run2016D_part9");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part1");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part2");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part3");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part4");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part5");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part6");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part7");
+      subSampleNameVector.push_back("SingleElectron_Run2016E_part8");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part1");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part2");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part3");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part4");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part5");
+      subSampleNameVector.push_back("SingleElectron_Run2016F_part6");
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part1"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part10"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part11"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part12"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part13"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part2"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part3"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part4"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part5"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part6"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part7"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part8"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part9"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part1"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part10"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part11"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part12"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part13"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part14"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part2"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part3"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part4"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part5"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part6"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part7"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part8"); */
+      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part9"); */
+    } else if (sample == Sample::data_singleMu) { 
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part11");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part12");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part13");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part14");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part15");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part16");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part17");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part18");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part19");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part20");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part21");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part22");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part23");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016B_part9");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016C_part9");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016D_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part11");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part12");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part13");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part14");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016E_part9");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part11");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016F_part9");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part11");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part12");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part13");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part14");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part15");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part16");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part17");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part18");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part19");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part20");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part21");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part22");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part23");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016G_part9");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part1");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part10");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part11");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part12");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part13");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part14");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part15");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part17");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part18");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part19");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part2");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part20");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part21");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part22");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part23");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part24");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part25");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part26");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part27");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part28");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part29");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part3");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part30");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part31");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part32");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part4");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part5");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part6");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part7");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part8");
+      subSampleNameVector.push_back("SingleMuon_Run2016H_part9");
     } else if (sample == Sample::top) {
-      subSampleNameVector.push_back("TBar_tWch");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar");
-      subSampleNameVector.push_back("TToLeptons_sch");
-      subSampleNameVector.push_back("TToLeptons_tch_amcatnlo");
-      subSampleNameVector.push_back("T_tWch");
+      subSampleNameVector.push_back("TBar_tWch_ext");
+      subSampleNameVector.push_back("TBar_tch_powheg_part1");
+      subSampleNameVector.push_back("TBar_tch_powheg_part2");
+      subSampleNameVector.push_back("TBar_tch_powheg_part3");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part1");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part2");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part3");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part4");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part5");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part6");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part7");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part8");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part9");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_part1");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_part2");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part1");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part2");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part3");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part4");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part5");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part1");
+      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part2");
+      subSampleNameVector.push_back("TToLeptons_sch_amcatnlo");
+      subSampleNameVector.push_back("T_tWch_ext");
+      subSampleNameVector.push_back("T_tch_powheg_part1");
+      subSampleNameVector.push_back("T_tch_powheg_part2");
     } else if (sample == Sample::diboson) {
-      subSampleNameVector.push_back("WW");      
-      subSampleNameVector.push_back("WZ");      
-      subSampleNameVector.push_back("ZZ");      
+      subSampleNameVector.push_back("WW");
+      subSampleNameVector.push_back("WW_ext");
+      subSampleNameVector.push_back("WZ");
+      subSampleNameVector.push_back("WZ_ext");
+      subSampleNameVector.push_back("ZZ");
+      subSampleNameVector.push_back("ZZ_ext");
     } else if (sample == Sample::qcd_mu) {
-      subSampleNameVector.push_back("QCD_Mu15");
+      subSampleNameVector.push_back("QCD_Mu15_part1");
+      subSampleNameVector.push_back("QCD_Mu15_part2");
       subSampleNameVector.push_back("QCD_Pt1000toInf_Mu5");
       subSampleNameVector.push_back("QCD_Pt120to170_Mu5");
       subSampleNameVector.push_back("QCD_Pt15to20_Mu5");
       subSampleNameVector.push_back("QCD_Pt170to300_Mu5");
+      subSampleNameVector.push_back("QCD_Pt170to300_Mu5_ext");
       subSampleNameVector.push_back("QCD_Pt20to30_Mu5");
-      subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext");
       subSampleNameVector.push_back("QCD_Pt300to470_Mu5");
+      subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext");
+      subSampleNameVector.push_back("QCD_Pt300to470_Mu5_ext2");
       subSampleNameVector.push_back("QCD_Pt30to50_Mu5");
       subSampleNameVector.push_back("QCD_Pt470to600_Mu5_ext");
-      subSampleNameVector.push_back("QCD_Pt470to600_Mu5");
       subSampleNameVector.push_back("QCD_Pt50to80_Mu5");
-      subSampleNameVector.push_back("QCD_Pt600to800_Mu5_ext");
       subSampleNameVector.push_back("QCD_Pt600to800_Mu5");
-      subSampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext");
-      subSampleNameVector.push_back("QCD_Pt800to1000_Mu5");
+      subSampleNameVector.push_back("QCD_Pt800to1000_Mu5_ext2");
       subSampleNameVector.push_back("QCD_Pt80to120_Mu5");
+      subSampleNameVector.push_back("QCD_Pt80to120_Mu5_ext");
     } else if (sample == Sample::qcd_ele) {
-      subSampleNameVector.push_back("QCD_Pt120to170_EMEnriched");
-      subSampleNameVector.push_back("QCD_Pt170to300_EMEnriched");
       subSampleNameVector.push_back("QCD_Pt20to30_EMEnriched");
-      subSampleNameVector.push_back("QCD_Pt300toInf_EMEnriched");
       subSampleNameVector.push_back("QCD_Pt30to50_EMEnriched");
-      subSampleNameVector.push_back("QCD_Pt50to80_EMEnriched");
-      subSampleNameVector.push_back("QCD_Pt80to120_EMEnriched");
+      subSampleNameVector.push_back("QCD_Pt30to50_EMEnriched_ext");
+      subSampleNameVector.push_back("QCD_Pt50to80_EMEnriched_ext");
+      subSampleNameVector.push_back("QCD_Pt80to120_EMEnriched_ext");
       subSampleNameVector.push_back("QCD_Pt_170to250_bcToE");
+      subSampleNameVector.push_back("QCD_Pt_20to30_bcToE");
       subSampleNameVector.push_back("QCD_Pt_250toInf_bcToE");
       subSampleNameVector.push_back("QCD_Pt_30to80_bcToE");
+      subSampleNameVector.push_back("QCD_Pt_80to170_bcToE");
     } else {
       cout << "#### Error in buildChain() function: sample name not available, please check. Exit ..." << endl;
       exit(EXIT_FAILURE);
@@ -2068,58 +2559,63 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
   
     string treeRootFile = "";
     if (use8TeVSample) {
+
       treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/treeProducerWMassEle_tree.root";
       if (treePath.find("WSKIM_V") != string::npos || treePath.find("QCDSKIM_V") != string::npos || treePath.find("ZEESKIM_V") != string::npos) {
 	treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMassEle/tree.root";
       }
+
     } else {
+
       if (treePath.find("/eos/cms/") != string::npos) {
 	treeRootFile = treePath + subSampleNameVector[i] + "/treeProducerWMass/tree.root";
       } else {
 	cout << "13 TeV trees not available outside eos, or function to read them not implemented yet. Please check. Exit." << endl;
 	exit(EXIT_FAILURE);
       }
+
     }
+
     cout << "Tree: " << treeRootFile << endl;
 
     chain->Add(TString(treeRootFile.c_str()));
 
-    // for 13 TeV ntuples, new ones (*_nano version) don't have at the moment also the histograms
-    string fileNameToGetTH1 = use8TeVSample ? treeRootFile : Form("root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2/%s_treeProducerWMass_tree.root",subSampleNameVector[i].c_str());
-    // read number of generated events
-    TFile* ftree = new TFile(fileNameToGetTH1.c_str(),"READ");
-    if (!ftree || ftree->IsZombie()) {
-      cout << "### Error in buildChain(): couldn't open file '" << treeRootFile << "'. Exit" << endl;
-      exit(EXIT_FAILURE);
-    }
-    TH1F* hCount = (TH1F*) getHistCloneFromFile(ftree,"Count","");
-    checkNotNullPtr(hCount,"hCount");
+    // in the following we need the total number of generated events to normalize MC
+    // for 8 TeV there is a histogram in the same file with root tree, named Count
+    // its integral (or number of entries, since it is an integer) gives the total number of generated events
+    // at 13 TeV, depending on MC (LO or NLO) we have a gen weight different from 1, and it is not an integer number in general
+    // we need the sum of gen weights
+    // Moreover, if we have extensions for a MC sample (and in case both versions are used) each of them must be normalized to the sum of the two sum of weights
+    // otherwise we are adding the same MC as a different process
+    // since at 13 TeV, due to lack of space during MC ntuples production, we also have many chunks of the same process, I wrote a script to produce a map
+    // that associates to a given sample its proper sumGenWeights value
 
     if (use8TeVSample) {
 
-      genwgtVec.push_back(getXsec8TeV(subSampleNameVector[i])/hCount->GetEntries());    
+      string fileNameToGetTH1 = treeRootFile;
+      // read number of generated events
+      TFile* ftree = new TFile(fileNameToGetTH1.c_str(),"READ");
+      if (!ftree || ftree->IsZombie()) {
+	cout << "### Error in buildChain(): couldn't open file '" << treeRootFile << "'. Exit" << endl;
+	exit(EXIT_FAILURE);
+      }
+      TH1F* hCount = (TH1F*) getHistCloneFromFile(ftree,"Count","");
+      checkNotNullPtr(hCount,"hCount");
+ 
+     genwgtVec.push_back(getXsec8TeV(subSampleNameVector[i])/hCount->GetEntries());    
+ 
+      delete hCount;
+      ftree->Close();
+      delete ftree;
 
     } else {
 
-      TH1F* hSumGenWeights = NULL;
       string sampleDir = getStringFromEnumSample(sample).c_str();
       if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) {
-	hSumGenWeights = (TH1F*) getHistCloneFromFile(ftree,"SumGenWeights","");
-	checkNotNullPtr(hSumGenWeights,"hSumGenWeights");
-	// xsec is in ntuples
-	//genwgtVec.push_back(getXsec13TeV(subSampleNameVector[i])/hSumGenWeights->Integral());    
-	// FIXME: understand which weight to use and how to normalize
-	//genwgtVec.push_back(1./(hSumGenWeights->Integral() * (double) hCount->GetEntries()));    
-	genwgtVec.push_back(1./(hSumGenWeights->Integral()));    
-	//genwgtVec.push_back(1./(hSumGenWeights->GetEntries() * (double) hCount->GetEntries()));    
-	//genwgtVec.push_back(1./(double) hCount->GetEntries());    
-	delete hSumGenWeights;
+	genwgtVec.push_back(1./getSumGenWeightFromSampleName(subSampleNameVector[i]));    
       }
 
     }
-    delete hCount;
-    ftree->Close();
-    delete ftree;
 
   }
 
@@ -2135,7 +2631,10 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
 
     for(UInt_t i = 0; i < subSampleNameVector.size(); i++) {
   
-      string friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root";
+      string friend_treeRootFile = "";
+      if (use8TeVSample) friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root";
+      else friend_treeRootFile = treePath + "friends/tree_Friend_" + subSampleNameVector[i]+ ".root";
+
       chFriend->Add(TString(friend_treeRootFile.c_str()));
 
     }
