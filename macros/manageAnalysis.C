@@ -15,13 +15,19 @@ using namespace std;
 // You call this macro with the same arguments as makeVariableHistograms.C, but using only strings (to build command in an easier way)
 // e.g., if you pass a number or a bool, you write these as if they were strings
 
-void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1_plot2 = 0, const Int_t skip_no0_cut1_invCut2 = 0, const Int_t plot_all0_pos1_neg2 = 0, const Int_t plot_all0_EB1_EE2 = 0, const Bool_t useEleSkimmedSample = true) {
+void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, 
+		    const Int_t skip_no0_sel1_plot2 = 0, 
+		    const Int_t skip_no0_cut1_invCut2 = 0, 
+		    const Int_t plot_all0_pos1_neg2_comb3 = 3, 
+		    const Int_t plot_all0_EB1_EE2 = 0, 
+		    const Bool_t useEleSkimmedSample = true) 
+{
 
-  // plot_all0_pos1_neg2 -->  0: plot both +ve and -ve; 1: plot only +ve; 2: plot only -ve
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/test_new/";
+  // plot_all0_pos1_neg2_comb3 -->  0: plot +ve and -ve and combined; 1: plot only +ve; 2: plot only -ve; 3: plot only combined (default)
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/TREES_1LEP_80X_V3/trash_test/";
   //string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_13TeV/trash/";
 
-  string inputDIR  = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";  // WARNING: it is actually set for each region below
+  string inputDIR  = "/eos/cms/store/group/dpg_ecal/comm_ecal/localreco/TREES_1LEP_80X_V3/";  // WARNING: it is actually set for each region below
   string outfileName = "wmass_varhists.root";
 
   string outputDIR = "";
@@ -60,7 +66,7 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
     // Wenu
     if (skip_no0_cut1_invCut2 != 1) {
 
-      if (useEleSkimmedSample) inputDIR = "root://eoscms//eos/cms/store/cmst3/user/emanuele/wmass/TREES_1LEP_80X_V2_nano/";
+      if (useEleSkimmedSample) inputDIR = "/eos/cms/store/group/dpg_ecal/comm_ecal/localreco/TREES_1LEP_80X_V3/";
       outputDIR = outputPath + "Wenu/";
       QCD_enriched_region = "false";
       isMuon = "false";
@@ -70,10 +76,10 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 	gROOT->ProcessLine(command.c_str());
       }
 
-      //plot with option 0,1,2 to do combined, positive or negative W
+      //plot with option 0,1,2,3 to do all combinations, positive or negative or both charge W
       if (skip_no0_sel1_plot2 != 2) {
-	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	for (Int_t i = 1; i < 4; i++) {
+	  if (plot_all0_pos1_neg2_comb3 && i != plot_all0_pos1_neg2_comb3) continue;
 	  for (Int_t j = 1; j < 3; j++) {
 	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
 
@@ -104,10 +110,10 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 	gROOT->ProcessLine(command.c_str());
       }
       
-      //plot with option 0,1,2 to do combined, positive or negative W
+      //plot with option 0,1,2,3 to do all combinations, positive or negative or both charge W
       if (skip_no0_sel1_plot2 != 2) {
-	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	for (Int_t i = 1; i < 4; i++) {
+	  if (plot_all0_pos1_neg2_comb3 && i != plot_all0_pos1_neg2_comb3) continue;
 	  for (Int_t j = 1; j < 3; j++) {
 	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
 	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
@@ -147,10 +153,10 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 	gROOT->ProcessLine(command.c_str());
       }
 
-      //plot with option 0,1,2 to do combined, positive or negative W
+      //plot with option 0,1,2,3 to do all combinations, positive or negative or both charge W
       if (skip_no0_sel1_plot2 != 2) {
-	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	for (Int_t i = 1; i < 4; i++) {
+	  if (plot_all0_pos1_neg2_comb3 && i != plot_all0_pos1_neg2_comb3) continue;
 	  for (Int_t j = 1; j < 3; j++) {
 	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
 	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";
@@ -177,10 +183,10 @@ void manageAnalysis(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_sel1
 	gROOT->ProcessLine(command.c_str());
       }  
 
-      //plot with option 0,1,2 to do combined, positive or negative W
+      //plot with option 0,1,2,3 to do all combinations, positive or negative or both charge W
       if (skip_no0_sel1_plot2 != 2) {
-	for (Int_t i = 1; i < 3; i++) {
-	  if (plot_all0_pos1_neg2 && i != plot_all0_pos1_neg2) continue;
+	for (Int_t i = 1; i < 4; i++) {
+	  if (plot_all0_pos1_neg2_comb3 && i != plot_all0_pos1_neg2_comb3) continue;
 	  for (Int_t j = 1; j < 3; j++) {
 	    if (plot_all0_EB1_EE2 && j != plot_all0_EB1_EE2) continue;
 	    plotCommand = "makeDataMCPlots(\"" + outputDIR + "\",\"" + outfileName + "\"," + isWregion + "," + isMuon + "," + string(Form("%d",i)) + "," + string(Form("%d",j)) + ")";

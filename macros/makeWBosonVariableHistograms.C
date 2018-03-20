@@ -30,13 +30,13 @@ static Bool_t correctRecoilResponse = false;
 static Bool_t removeZtaggedEvents = false;
 
 // update names to 13 TeV samples
-static string eleFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_el_mvatrg.root";
+static string eleFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/heppy/CMSSW_8_0_25/src/CMGTools/WMass/data/fakerate/fakeRateSmoothed_el.root";
 static string eleFakeRateHistoName = "FR_FullSel_el_data_comb";
 static string muFakeRateFileName = "/afs/cern.ch/work/m/mciprian/w_mass_analysis/CMSSW_5_3_22_patch1/src/CMGTools/WMass/data/fakerate/FR_data_mu_mvatrg.root";
 static string muFakeRateHistoName = "FR_FullSel_mu_data_comb";
 
 static vector<Double_t> muEtaBinEdges_double = {0.0, 0.8, 1.6, 2.1};
-static vector<Double_t> eleEtaBinEdges_double = {0.0, 1.0, 1.479, 2.5};
+static vector<Double_t> eleEtaBinEdges_double = {0.0, 1.0, 1.479, 2.1, 2.5};
 
 
 //=============================================================
@@ -100,8 +100,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TChain* friendChain = NULL;
   if (use8TeVSample) friendChain = new TChain("mjvars/t");  // leave as NULL if you don't use friend trees
   else {
-    if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos)
-      friendChain = new TChain("Friends");      
+    //    if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos)
+    friendChain = new TChain("Friends");      
   }
   //TChain* friendChain = NULL;  // leave as NULL if you don't use friend trees
   TChain* SfFriendChain = NULL;
@@ -136,19 +136,19 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderArray<Float_t> Jet_phi(reader,"Jet_phi");
 
   // LepGood for muons, LepCorr for electrons
-  string lepVarToUse = isMuon ? "nLepGood" : "nLepCorr";
+  string lepVarToUse = "";
   //TTreeReaderArray<Int_t> nlep (reader,lepVarToUse.c_str());
   TTreeReaderValue<Int_t> nlep  (reader,"nLepGood");
-  lepVarToUse = isMuon ? "LepGood_pt" : "LepCorr_pt";
-  TTreeReaderArray<Float_t> lep_pt (reader,"LepGood_pt");
-  lepVarToUse = isMuon ? "LepGood_eta" : "LepCorr_eta";
+  lepVarToUse = isMuon ? "LepGood_pt" : "LepGood_calPt";
+  TTreeReaderArray<Float_t> lep_pt (reader,lepVarToUse.c_str());
   TTreeReaderArray<Float_t> lep_eta (reader,"LepGood_eta");
 
   // LepGood branch
   TTreeReaderArray<Int_t> lep_pdgId (reader,"LepGood_pdgId");
   TTreeReaderArray<Float_t> lep_phi (reader,"LepGood_phi");
   TTreeReaderArray<Float_t> lep_mass (reader,"LepGood_mass");
-  TTreeReaderArray<Float_t> lep_relIso04 (reader,"LepGood_relIso04");
+  lepVarToUse = isMuon ? "LepGood_relIso04" : "LepGood1_relIso04EA";
+  TTreeReaderArray<Float_t> lep_relIso04 (reader,lepVarToUse.c_str());
   TTreeReaderArray<Int_t> lep_tightId (reader,"LepGood_tightId");
 
   // for electronID
@@ -694,9 +694,15 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 	    // FIXME
 	    // avoid overflow on x axis (which has pT <= 100.0), otherwise I don't know what happens
 	    // same for y axis with eta
-	    Double_t ptToFindBin = (lep1pt > 100.0) ? 99.0 : lep1pt; 
-	    Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.5) ? 2.495 : fabs(lep_eta[0]); 
-	    wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	    // Double_t ptToFindBin = (lep1pt > 100.0) ? 99.0 : lep1pt; 
+	    // Double_t etaToFindBin = (fabs(lep_eta[0]) > 2.5) ? 2.495 : fabs(lep_eta[0]); 
+	    // wgt *= h2fakeRate->GetBinContent( h2fakeRate->FindBin(ptToFindBin,etaToFindBin) ); // search for global bin of the TH2
+	    Int_t etabin = std::max(1, std::min(h2fakeRate->GetNbinsX(), h2fakeRate->GetXaxis()->FindFixBin(fabs(lep_eta[0]))));
+	    Float_t p0 = h2fakeRate->GetBinContent(etabin, 1);
+	    Float_t p1 = h2fakeRate->GetBinContent(etabin, 2);
+
+	    Double_t fakerateSmooth = p0 + p1 * lep1pt;
+	    wgt *= (fakerateSmooth / (1 - fakerateSmooth));
 	  }
 	  // when using fake rate, consider the event as if it had passed the tight selection, therefore also isolation
 	  passLooseAndNotTightSeleForFR = false;

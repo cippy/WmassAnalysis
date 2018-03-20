@@ -19,7 +19,7 @@ void manageAnalysis8TeV(const Int_t skip_no0_Mu1_ele2 = 0, const Int_t skip_no0_
 
   // string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/varHist_HLTmatch_SRpfmet20_CRdxy0p002pfmet20/";
   // string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/debugTest_eleEta_QCD_CR_noCutDeta/";
-  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/hist_23Aug2017_noMetMt_dxyMax0p02/";
+  string outputPath = "/afs/cern.ch/user/m/mciprian/www/wmass/analysisPlots_8TeV/trash/";
 
   string inputDIR  = "/u2/emanuele/TREES_1LEP_53X_V3/";  // WARNING: it is actually set for each region below
   string outfileName = "wmass_varhists.root";

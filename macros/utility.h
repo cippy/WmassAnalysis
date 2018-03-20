@@ -33,6 +33,7 @@
 #include <TFitResult.h>
 #include <TGraph2D.h>
 #include <TGraphErrors.h>
+#include <TGraphAsymmErrors.h>
 #include <THStack.h>
 #include <TH1.h>
 #include <TH1D.h>
@@ -51,6 +52,7 @@
 #include <TPaveStats.h>
 #include <TPaveText.h>
 #include <TProfile.h>
+#include <TSpline.h>
 #include <TTreeIndex.h>
 #include <TTreeReader.h>
 #include <TTreeReaderArray.h>
@@ -234,13 +236,15 @@ public:
   plotManager(const string & histName,
 	      const string & xAxisName,
 	      const string & canvasName,
-	      const int    & rebinFactor
+	      const int    & rebinFactor,
+	      const int    & logy = 0 // 0 for both, 1 for no log, 2 for only log
 	      ) 
   {
     histName_    = histName;
     xAxisName_   = xAxisName;
     canvasName_  = canvasName;
-    rebinFactor_ = rebinFactor;
+    rebinFactor_ = rebinFactor;    
+    logy_        = logy;
   };
 
   ~plotManager() {};
@@ -249,11 +253,13 @@ public:
   string getXaxisName()   const { return xAxisName_;   };
   string getCanvasName()  const { return canvasName_;  };
   int    getRebinFactor() const { return rebinFactor_; };
+  int    getLogy()        const { return logy_; };
 
   void setHistName   (const string & histName  )  { histName_    = histName;    };
   void setXaxisName  (const string & xAxisName )  { xAxisName_   = xAxisName;   };
   void setCanvasName (const string & canvasName)  { canvasName_  = canvasName;  };  
   void setRebinFactor(const int    & rebinFactor) { rebinFactor_ = rebinFactor; };
+  void setLogy       (const int    & logy)        { logy_        = logy; };
 
 private:
 
@@ -261,6 +267,7 @@ private:
   string xAxisName_;
   string canvasName_;    
   int    rebinFactor_;
+  int    logy_;
 
 };
 
@@ -299,6 +306,62 @@ string getTexLabel(const string& sampleDir = "wjets") {
 
 }
 
+
+//======================================================
+
+
+void addOverflowInLastBin(TH1D *h) {
+
+  // to avoid problems regarding memory leak for not deleting htemp in previous function, I sum directly the content of overflow bin in last bin
+
+  Int_t lastBinNumber = h->GetNbinsX();
+  Int_t overflowBinNumber = 1 + lastBinNumber;
+  Double_t lastBinContent = h->GetBinContent(lastBinNumber);
+  Double_t overflowBinContent = h->GetBinContent(overflowBinNumber);
+  Double_t lastBinError = h->GetBinError(lastBinNumber);
+  Double_t overflowBinError = h->GetBinError(overflowBinNumber);
+
+  // add content of overflow bin in last bin and set error as square root of sum of error squares (with the assumption that they are uncorrelated)
+  h->SetBinContent(lastBinNumber, lastBinContent + overflowBinContent);
+  h->SetBinError(lastBinNumber, sqrt(lastBinError * lastBinError + overflowBinError * overflowBinError));
+  // deleting content of overflow bin (safer, since I might be using that bin to add it again somewhere and I want it to be empty)                   
+  h->SetBinContent(overflowBinNumber,0.0);
+  h->SetBinError(overflowBinNumber,0.0);
+
+
+}
+
+
+//======================================================
+
+void addUnderflowInFirstBin(TH1D *h) {
+
+  // to avoid problems regarding memory leak for not deleting htemp in previous function, I sum directly the content of overflow bin in last bin
+
+  // Int_t underflowBinNumber = 0;
+  Double_t firstBinContent = h->GetBinContent(1);
+  Double_t underflowBinContent = h->GetBinContent(0);
+  Double_t firstBinError = h->GetBinError(1);
+  Double_t underflowBinError = h->GetBinError(0);
+
+  // add content of underflow bin in first bin and set error as square root of sum of error squares (with the assumption that they are uncorrelated)
+  h->SetBinContent(1, firstBinContent + underflowBinContent);
+  h->SetBinError(1, sqrt(firstBinError * firstBinError + underflowBinError * underflowBinError));
+  // deleting content of underflow bin (safer, since I might be using that bin to add it again somewhere and I want it to be empty)                   
+  h->SetBinContent(0,0.0);
+  h->SetBinError(0,0.0);
+
+}
+
+
+//======================================================
+
+void addOutliersInHistoRange(TH1D* h) {
+
+  addOverflowInLastBin(h);
+  addUnderflowInFirstBin(h);
+
+}
 
 //======================================================
 
@@ -424,6 +487,107 @@ string getStringFromEnumSample(const Sample& sample = Sample::zjets) {
 
 }
 
+// ============================================
+
+void quantiles(TGraph*gr = NULL, TH1* h = NULL) {
+
+  const Int_t nq = gr->GetN(); // 20 bins
+
+  Double_t xq[nq];  // position where to compute the quantiles in [0,1]                                                                  
+  Double_t yq[nq];  // array to contain the quantiles                                                                             
+
+  for (Int_t i=0 ; i<nq ; i++) 
+    xq[i] = Float_t(i)/(nq-1);
+
+  h->GetQuantiles(nq,yq,xq);
+
+  for (Int_t i=0 ; i<nq ; i++) 
+    gr->SetPoint(i,yq[i],xq[i]); // put efficiency on y axis
+  
+
+}
+
+//=============================================
+
+Double_t doSoverB(TGraph* gsob = NULL, TH1* hwjets = NULL, TH1* hqcd = NULL) {
+
+  const UInt_t npoints = gsob->GetN(); 
+
+  Double_t max = 0.0;
+  Double_t xin = hwjets->GetBinCenter(1);
+  Double_t step = (hwjets->GetBinCenter(hwjets->GetNbinsX()) - xin)/npoints;
+  Double_t sob = 0.0;
+  Double_t x_i = 0.0;
+  Double_t s = 0.0; 
+  Double_t b = 0.0;
+
+  for (UInt_t i = 0; i <npoints; i++ ) {
+    x_i = xin + ((Double_t)i) * step;
+    s = hwjets->Integral(0, hwjets->FindFixBin(x_i));
+    b = hqcd->Integral(0, hqcd->FindFixBin(x_i)); 
+    sob = s / b;
+    //cout << "x: " << x_i << "    s: " << s << "    b: " << b << "    s/b: " << sob << endl;
+    gsob->SetPoint(i,x_i, sob);
+    if (max < sob) max = sob;
+  }
+
+  return max;
+
+}
+
+//=============================================
+
+void doEfficiencyFromTH2(TH2* h2 = NULL, const TH2* h2orig = NULL, const Bool_t revert = false) {
+
+  // with revert == true, the efficiency is obtained from the integral from X to end (otherwise from beginning to x)
+
+  for (Int_t ix = 1; ix <= h2->GetNbinsX(); ix++) {
+
+    // include underflow and overflow in the integral
+    Double_t yIntegralFixedX = h2orig->Integral(ix, ix, 0, 1 + h2orig->GetNbinsY());
+    Double_t integralRange = 0.0;
+
+    for (Int_t iy = 1; iy <= h2->GetNbinsY(); iy++) {
+
+      integralRange = revert ? h2orig->Integral(ix, ix, iy, 1 + h2orig->GetNbinsY()) : h2orig->Integral(ix, ix, 0, iy);
+      h2->SetBinContent(ix,iy, integralRange/yIntegralFixedX);
+
+    }
+
+  }
+  
+}
+
+//=============================================
+
+void makeROC(TGraph* gr = NULL, const TH1* hsTmp = NULL, const TH1* hbTmp = NULL) {
+
+  // clone original histogram
+  // this is only needed if the histogram passed as argument is declared const in this function
+  // because in this case cannot use methods like TH1::FindBin which is not declared const
+  TH1* hs = (TH1*) hsTmp->Clone(); 
+  TH1* hb = (TH1*) hbTmp->Clone(); 
+
+  const Int_t nq = gr->GetN(); 
+  Double_t xq[nq];  // position where to compute the quantiles in [0,1]                                                                  
+  Double_t yq[nq];  // array to contain the quantiles                                                                             
+
+  for (Int_t i=0 ; i<nq ; i++) 
+    xq[i] = Float_t(i)/(nq-1);
+
+  hs->GetQuantiles(nq,yq,xq);
+
+  Double_t integralB = hb->Integral(0, hb->GetNbinsX()+1);
+
+  for (Int_t ipoint = 0; ipoint < nq; ipoint++) {
+
+    Double_t effB = hb->Integral(0, hb->FindFixBin(yq[ipoint])) / integralB;
+    gr->SetPoint(ipoint, effB, xq[ipoint]);
+
+  }
+
+}
+
 //======================================================
 
 void myAddOverflowInLastBin(TH1 *h) { 
@@ -481,6 +645,32 @@ TH1* getHistCloneFromFile(TFile* inputFile = NULL, const string& hvarName = "", 
 
 }
 
+//==================================================
+
+TGraph* getGraphCloneFromFile(TFile* inputFile = NULL, const string& graphvarName = "", const string& sampleDir = "", const string &filename = "") {
+
+  // use sampleDir to select a directory, default is the first one
+  // use sampleDir without "/" at the end
+
+  TGraph* graphvar = NULL;
+
+  if (!inputFile || inputFile == NULL || inputFile->IsZombie()) {
+    cout << "Error in getGraphCloneFromFile(): file not opened. Exit" << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  if (sampleDir == "") graphvar = (TGraph*) inputFile->Get((graphvarName).c_str());
+  else graphvar = (TGraph*) inputFile->Get((sampleDir + "/" + graphvarName).c_str());
+  if (!graphvar || graphvar == NULL) {
+    cout << "Error in getGraphCloneFromFile(): graph '" << graphvarName << "' not found in file '" << filename << "' (directory is " << sampleDir << "). End of programme." << endl;
+    exit(EXIT_FAILURE);
+  }
+
+  return (TGraph*) graphvar->Clone(sampleDir.c_str());
+
+}
+
+
 //======================================================
 
 TH2* getHist2CloneFromFile(TFile* inputFile = NULL, const string& hvarName = "", const string& sampleDir = "") {
@@ -517,6 +707,27 @@ void checkNotNullPtr(TH1* hptr, const string& ptrName = "hptr") {
 
 }
 
+//======================================================
+
+void checkNotNullPtr(TGraph* graphptr, const string& ptrName = "graphptr") {
+
+  if ( graphptr == NULL) {
+    cout << "Error: pointer " << ptrName << " is NULL. Exit" << endl;
+    exit(EXIT_FAILURE);
+  }
+
+}
+
+//======================================================
+
+void checkNotNullPtr(TObject* objptr, const string& ptrName = "graphptr") {
+
+  if ( objptr == NULL) {
+    cout << "Error: pointer " << ptrName << " is NULL. Exit" << endl;
+    exit(EXIT_FAILURE);
+  }
+
+}
 
 //======================================================
 
@@ -533,6 +744,8 @@ void checkNotNullPtr(TH2* hptr, const string& ptrName = "hptr") {
 //======================================================
 
 string getStringFromDouble(const Double_t& num = 1.0, const Double_t epsilon = 0.00001) {
+
+  // warning: using up to 3 decimal
   
   Int_t i = (Int_t) num;
   // stringstream ss;                                                                                      
@@ -548,6 +761,23 @@ string getStringFromDouble(const Double_t& num = 1.0, const Double_t epsilon = 0
 
 //======================================================                                                                
 
+/* string getDoubleFromString(const string& numberStr = "1.0", const Double_t epsilon = 0.00001) { */
+  
+/*   int */
+
+/*   Int_t i = (Int_t) num; */
+/*   // stringstream ss;                                                                                       */
+/*   // ss<<i;                                                                                                                          */
+/*   // string numStr = ss.str();                                                                                          */
+/*   Int_t int_decim = (Int_t) (1000 * (num - (Double_t) i + epsilon)); */
+/*   if      (int_decim%1000 == 0) return string(Form("%dp%d",i,int_decim/1000)); */
+/*   else if (int_decim%100 == 0)  return string(Form("%dp%d",i,int_decim/100)); */
+/*   else if (int_decim%10 == 0)   return string(Form("%dp%d",i,int_decim/10)); */
+/*   else                          return string(Form("%dp%d",i,int_decim)); */
+
+/* } */
+
+//======================================================                                                                
 
 void fillTH1(TH1* histo, const Double_t val, const Double_t weight = 1.0, const Bool_t useOverflowBin = true) {
 
@@ -805,6 +1035,149 @@ Bool_t getAxisRangeFromUser(string& axisName, Double_t& min, Double_t& max,
 
 }
 
+//=============================================
+
+void drawGraph(vector<TGraph*> gr_roc_S_B = {}, 
+	       const string& xAxisNameTmp = "xAxis", 
+	       const string& yAxisNameTmp = "yAxis", 
+	       const string& canvasName = "default",
+	       const string& outputDIR = "./",
+	       const vector<string>& leg_roc = {""},
+	       const vector<Double_t>& legCoord = {0.5,0.15,0.9,0.35}) 
+{
+
+  string xAxisName = "";
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
+
+  string yAxisName = "";
+  Double_t ymin = 0;
+  Double_t ymax = 0;
+  Bool_t setYAxisRangeFromUser = getAxisRangeFromUser(yAxisName, ymin, ymax, yAxisNameTmp);
+
+
+  Int_t nGraphs = gr_roc_S_B.size();
+
+  TCanvas* canvas = new TCanvas("canvas","",600,600);
+  canvas->cd();
+  canvas->SetFillColor(0);
+  canvas->SetGrid();
+  canvas->SetRightMargin(0.06);
+  canvas->cd();
+
+  //  TLegend leg (0.5,0.15,0.9,0.15+0.05*nGraphs);
+  TLegend leg (legCoord[0],legCoord[1],legCoord[2],legCoord[3]);
+  leg.SetFillColor(0);
+  leg.SetFillStyle(0);
+  leg.SetBorderSize(0);
+
+  Int_t colorList[] = {kBlack, kBlue, kRed, kGreen+2, kOrange+1, kCyan+2, kGray+2};
+
+  for (Int_t ig = 0; ig < nGraphs; ig++) {
+    gr_roc_S_B[ig]->SetMarkerStyle(21);
+    gr_roc_S_B[ig]->SetMarkerColor(colorList[ig]);
+    gr_roc_S_B[ig]->SetLineColor(colorList[ig]);
+    gr_roc_S_B[ig]->SetFillColor(colorList[ig]);
+    if (ig == 0) gr_roc_S_B[ig]->Draw("alp");
+    else gr_roc_S_B[ig]->Draw("lp same");
+    leg.AddEntry(gr_roc_S_B[ig],leg_roc[ig].c_str(),"LF");
+  }
+  leg.Draw("same");
+
+  gr_roc_S_B[0]->GetXaxis()->SetTitle(xAxisName.c_str());
+  gr_roc_S_B[0]->GetYaxis()->SetTitle(yAxisName.c_str());
+  if (setXAxisRangeFromUser) gr_roc_S_B[0]->GetXaxis()->SetRangeUser(xmin,xmax);
+  if (setYAxisRangeFromUser) gr_roc_S_B[0]->GetYaxis()->SetRangeUser(ymin,ymax);
+
+  canvas->RedrawAxis("sameaxis");
+
+  canvas->SaveAs((outputDIR+canvasName+".png").c_str());
+  canvas->SaveAs((outputDIR+canvasName+".pdf").c_str());
+
+  delete canvas;
+
+}
+
+//=============================================
+
+void drawGraphCMS(vector<TGraph*> grList = {}, 
+		  const string& xAxisNameTmp = "xAxis", 
+		  const string& yAxisNameTmp = "yAxis", 
+		  const string& canvasName = "default",
+		  const string& outputDIR = "./",
+		  const vector<string>& leg_roc = {""},
+		  const vector<Double_t>& legCoord = {0.5,0.15,0.9,0.35},
+		  const Double_t lumi = -1.0 
+		  ) 
+
+{
+
+  string xAxisName = "";
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
+
+  string yAxisName = "";
+  Double_t ymin = 0;
+  Double_t ymax = 0;
+  Bool_t setYAxisRangeFromUser = getAxisRangeFromUser(yAxisName, ymin, ymax, yAxisNameTmp);
+
+
+  Int_t nGraphs = grList.size();
+
+  TCanvas* canvas = new TCanvas("canvas","",600,600);
+  canvas->cd();
+  canvas->SetFillColor(0);
+  canvas->SetGrid();
+  canvas->SetRightMargin(0.06);
+  canvas->cd();
+
+  //  TLegend leg (0.5,0.15,0.9,0.15+0.05*nGraphs);
+  TLegend leg (legCoord[0],legCoord[1],legCoord[2],legCoord[3]);
+  leg.SetFillColor(0);
+  leg.SetFillStyle(0);
+  leg.SetBorderSize(0);
+
+  Int_t colorList[] = {kBlack, kRed, kGreen+2, kBlue, kOrange+1, kCyan+2, kGray+2};
+
+  for (Int_t ig = 0; ig < nGraphs; ig++) {
+    grList[ig]->SetMarkerStyle(20);
+    grList[ig]->SetMarkerColor(colorList[ig]);
+    grList[ig]->SetLineColor(colorList[ig]);
+    grList[ig]->SetLineWidth(2);
+    grList[ig]->SetFillColor(colorList[ig]);
+    if (ig == 0) grList[ig]->Draw("ap");
+    else grList[ig]->Draw("p same");
+    leg.AddEntry(grList[ig],leg_roc[ig].c_str(),"LF");
+  }
+  leg.Draw("same");
+
+  grList[0]->GetXaxis()->SetTitleSize(0.05);
+  grList[0]->GetXaxis()->SetLabelSize(0.04);
+  grList[0]->GetYaxis()->SetTitleOffset(1.1);
+  grList[0]->GetYaxis()->SetTitleSize(0.05);
+  grList[0]->GetYaxis()->SetLabelSize(0.04);
+  grList[0]->GetXaxis()->SetTitle(xAxisName.c_str());
+  grList[0]->GetYaxis()->SetTitle(yAxisName.c_str());
+  if (setXAxisRangeFromUser) grList[0]->GetXaxis()->SetRangeUser(xmin,xmax);
+  if (setYAxisRangeFromUser) grList[0]->GetYaxis()->SetRangeUser(ymin,ymax);
+
+  //  CMS_lumi(canvas,Form("%.1f",lumi));
+  if (lumi < 0) CMS_lumi(canvas,"",true,false);
+  else CMS_lumi(canvas,Form("%.1f",lumi),true,false);
+  setTDRStyle();
+
+  canvas->RedrawAxis("sameaxis");
+
+  canvas->SaveAs((outputDIR+canvasName+".png").c_str());
+  canvas->SaveAs((outputDIR+canvasName+".pdf").c_str());
+
+  delete canvas;
+
+}
+
+
 //=============================================================
 
 void drawTH1pair(TH1* h1, TH1* h2, 
@@ -1004,8 +1377,15 @@ void draw_nTH1(vector<TH1*> vecHist1d = {},
     vecHist1d[i]->SetStats(0);
   }
 
+  Int_t canvasWidth = 700;
+  Int_t canvasHeight = 600;
+  if (drawRatioWithNominal) {
+    canvasWidth = 600;
+    canvasHeight = 700;
+  }
 
-  TCanvas* canvas = new TCanvas("canvas","",600,700);
+
+  TCanvas* canvas = new TCanvas("canvas","",canvasWidth,canvasHeight);
   canvas->cd();
   canvas->SetTickx(1);
   canvas->SetTicky(1);
@@ -1205,7 +1585,9 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
 			const string& outputDIR = "./", 
 			const string& legEntry1 = "data", const vector<string>& vecLegEntryMC = {""}, 
 			const string& ratioPadYaxisName = "data/MC", const Double_t lumi = -1.0, const Int_t rebinFactor = 1, 
-			const Bool_t normalizeMCToData = false)
+			const Bool_t normalizeMCToData = false,
+			const Int_t draw_both0_noLog1_onlyLog2 = 0
+			)
 {
 
   string xAxisName = "";
@@ -1355,8 +1737,10 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
   leg2.AddEntry((TObject*)0,Form("#chi^{2}/ndf = %.2f",chi2),"");
   leg2.Draw("same");
 
-  canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
-  canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
+  if (draw_both0_noLog1_onlyLog2 != 2) {
+    canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
+  }
 
   /* Double_t minY_log = max(0.001, min(h1->GetBinContent(h1->GetMinimumBin()),stackCopy->GetBinContent(stackCopy->GetMinimumBin())) ) * 0.01; */
   /* if ( fabs(minY_log) < 0.00001) minY_log = 0.001;  // avoid zero */
@@ -1367,31 +1751,381 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
   /* Double_t minY_log = -1.0; */
   /* TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First(); // */
 
-  Double_t minY_log = 1e20;
-  TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
-  /* if (lowerStackObject->GetBinContent(stackCopy->GetMinimumBin()) > 0.000001 ) { */
-  /*   // if no empty bin in stack */
-  /*   minY_log = 0.05 * lowerStackObject->GetBinContent(lowerStackObject->GetMinimumBin()); */
-  /* } else { */
-  /*   minY_log = 0.01 * stackCopy->GetBinContent(stackCopy->GetMinimumBin()); */
-  /* } */
+  if (draw_both0_noLog1_onlyLog2 != 1) {
 
-  for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
-    if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    Double_t minY_log = 1e20;
+    TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
+    /* if (lowerStackObject->GetBinContent(stackCopy->GetMinimumBin()) > 0.000001 ) { */
+    /*   // if no empty bin in stack */
+    /*   minY_log = 0.05 * lowerStackObject->GetBinContent(lowerStackObject->GetMinimumBin()); */
+    /* } else { */
+    /*   minY_log = 0.01 * stackCopy->GetBinContent(stackCopy->GetMinimumBin()); */
+    /* } */
+
+    for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
+      if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    }
+
+    if (minY_log < 0.000001) minY_log = 0.1;
+    minY_log = 0.05 * minY_log;
+
+    h1->GetYaxis()->SetRangeUser(minY_log,max(h1->GetMaximum(),stackCopy->GetMaximum())*100);
+    canvas->SetLogy();
+    pad2->RedrawAxis("sameaxis");
+    /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
+    /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
+    canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    canvas->SetLogy(0);
   }
 
-  if (minY_log < 0.000001) minY_log = 0.1;
-  minY_log = 0.05 * minY_log;
+  delete hMCstack;
+  delete pad2;
+  delete canvas;
 
-  h1->GetYaxis()->SetRangeUser(minY_log,max(h1->GetMaximum(),stackCopy->GetMaximum())*100);
-  canvas->SetLogy();
+}
+
+//=============================================================
+
+void adjustSettings_CMS_lumi(const string& outputDir = "./") {
+
+  // tmp plot to be removed to adjust settings in CMS_lumi                                                                                                                  
+  TH1D* htmp1 = new TH1D("htmp1","",1,0,1);
+  TH1D* htmp2 = new TH1D("htmp2","",1,0,1);
+  htmp1->Fill(0.5);
+  htmp2->Fill(0.5);
+  vector<TH1*> htmpVec; htmpVec.push_back(htmp2);
+  drawTH1dataMCstack(htmp1, htmpVec, "variable", "Events", "tmpToBeRemoved", outputDir);
+  system(("rm " + outputDir + "*tmpToBeRemoved*").c_str());
+  delete htmp1;
+  delete htmp2;
+
+}
+  
+//=============================================================
+
+/* // following function calls the previous one that is more general and takes a vector of TH1* as "data" */
+/* // it would be used to have a stack and more than one not stacked histogram  */
+/* // ratio is made using only first non stacked object, but the others are used for the ratio */
+/* void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},  */
+/* 			const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default",  */
+/* 			const string& outputDIR = "./",  */
+/* 			const string& legEntry1 = "data", const vector<string>& vecLegEntryMC = {""},  */
+/* 			const string& ratioPadYaxisName = "data/MC", const Double_t lumi = -1.0, const Int_t rebinFactor = 1,  */
+/* 			const Bool_t normalizeMCToData = false, */
+/* 			const Int_t draw_both0_noLog1_onlyLog2 = 0 */
+/* 			) */
+/* { */
+
+/*   vector<TH1*> vecNostack;  */
+/*   vecNostack.push_back(h1); */
+
+/*   vector<string> vecLegEntryNostack; */
+/*   vecLegEntryNostack.push_back(legEntry1); */
+
+/*   drawMoreTH1andMCstack(vecNostack, vecMC, xAxisNameTmp, yAxisName, canvasName, outputDIR, vecLegEntryNostack, vecLegEntryMC, ratioPadYaxisName, lumi, rebinFactor, normalizeMCToData, ) */
+
+/* } */
+
+// function to draw data and MC and other not stacked objects
+void drawTH1dataMCstackAndNoStack(TH1* h1 = NULL, vector<TH1*> vecMC = {}, vector<TH1*> vecMCnostack = {},
+				  const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
+				  const string& outputDIR = "./", 
+				  const string& legEntry1 = "data", const vector<string>& vecLegEntryMC = {""}, const vector<string>& vecLegEntryMCnostack = {""}, 
+				  const string& ratioPadYaxisNameTmp = "data/MC", const Double_t lumi = -1.0, const Int_t rebinFactor = 1, 
+				  const Bool_t normalizeMCToData = false, // normalize MC stack and non stacked object individually
+				  const Int_t draw_both0_noLog1_onlyLog2 = 0,
+				  const string& denForRatio = "stack" // stack, TH1nostack
+				  )
+{
+
+  // select what to use as denominator in ratio plot
+  // nostack use first TH1 not stacked
+
+  string xAxisName = "";
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
+
+  string ratioPadYaxisName = "";
+  Double_t yminRatio = 0;
+  Double_t ymaxRatio = 0;
+  Bool_t setRatioYAxisRangeFromUser = getAxisRangeFromUser(ratioPadYaxisName, yminRatio, ymaxRatio, ratioPadYaxisNameTmp);
+
+  // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
+
+  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
+
+  if (vecMC.size() != vecLegEntryMC.size()) {
+    cout << "Error: stack legend has different number of entries than stack elements, please check. Exit" << endl;
+    exit(EXIT_FAILURE);
+  }
+  if (vecMCnostack.size() != vecLegEntryMCnostack.size()) {
+    cout << "Error: non-stack legend has different number of entries than non-stack elements, please check. Exit" << endl;
+    exit(EXIT_FAILURE);
+  }
+
+
+  for (UInt_t i = 0; i < vecMC.size(); i++) {
+    vecMC[i]->SetStats(0);
+  }  
+  for (UInt_t i = 0; i < vecMCnostack.size(); i++) {
+    vecMCnostack[i]->SetStats(0);
+  }
+
+  Int_t colorList[] = {kCyan, kViolet, kBlue, kRed, kYellow, kGreen, kOrange+1, kCyan+2, kGreen+2, kGray}; 
+  // the first color is for the main object. This array may contain more values than vecMC.size()
+  vector<Int_t> histColor;
+  for (UInt_t i = 0; i < vecMC.size(); i++) {   
+    histColor.push_back(colorList[i]);
+  }
+
+  vector<Int_t> histColorNostack = { kRed+2, kBlue+2, kGreen+2, kGray+2, kMagenta+2, kCyan+1, kOrange+1};
+
+  Double_t dataNorm = h1->Integral();
+  Double_t stackNorm = 0.0; 
+
+  if (normalizeMCToData) {
+    for (UInt_t ibin = 0; ibin < vecMC.size(); ibin++) {
+      stackNorm += vecMC[ibin]->Integral();
+    }
+    for (UInt_t ibin = 0; ibin < vecMCnostack.size(); ibin++) {
+      vecMCnostack[ibin]->Scale(dataNorm/vecMCnostack[ibin]->Integral());
+    }
+  }
+
+  THStack* hMCstack = new THStack("hMCstack","");
+  for (UInt_t j = 0; j < vecMC.size(); j++) {
+    vecMC[j]->SetFillColor(histColor[j]);
+    vecMC[j]->SetFillStyle(3001);
+    myRebinHisto(vecMC[j],rebinFactor);
+    if (normalizeMCToData) vecMC[j]->Scale(dataNorm/stackNorm);
+    hMCstack->Add(vecMC[(UInt_t) vecMC.size() - j -1]);  // add last element as the first one (last element added in stack goes on top)
+    vecMC[j]->GetXaxis()->SetTitle("");
+
+  }
+  for (UInt_t j = 0; j < vecMCnostack.size(); j++) {
+    vecMCnostack[j]->SetLineColor(histColorNostack[j]);
+    vecMCnostack[j]->SetFillColor(0);
+    vecMCnostack[j]->SetLineWidth(3);
+    vecMCnostack[j]->SetMarkerStyle(0);
+    myRebinHisto(vecMCnostack[j],rebinFactor);
+  }
+
+  TH1D* stackCopy = (TH1D*) hMCstack->GetStack()->Last(); // used to make ratioplot without affecting the plot and setting maximum
+
+  if (h1 == NULL) h1 = (TH1D*) stackCopy->Clone("pseudoData");
+  else myRebinHisto(h1,rebinFactor);
+
+  h1->SetStats(0);
+
+  TCanvas* canvas = new TCanvas("canvas","",600,700);
+  canvas->cd();
+  canvas->SetTickx(1);
+  canvas->SetTicky(1);
+  canvas->cd();
+  canvas->SetBottomMargin(0.3);
+  canvas->SetRightMargin(0.06);
+  canvas->SetLeftMargin(0.13);
+
+  TPad *pad2 = new TPad("pad2","pad2",0,0.,1,0.9);
+  pad2->SetTopMargin(0.7);
+  pad2->SetLeftMargin(0.13);
+  pad2->SetRightMargin(0.06);
+  pad2->SetFillColor(0);
+  pad2->SetGridy(1);
+  pad2->SetFillStyle(0);
+
+
+  TH1* frame =  (TH1*) h1->Clone("frame");
+  frame->GetXaxis()->SetLabelSize(0.04);
+  frame->SetStats(0);
+
+  h1->SetLineColor(kBlack);
+  h1->SetMarkerColor(kBlack);
+  h1->SetMarkerStyle(20);
+  h1->SetMarkerSize(1);
+
+  h1->GetXaxis()->SetLabelSize(0);
+  h1->GetXaxis()->SetTitle(0);
+  h1->GetYaxis()->SetTitle(yAxisName.c_str());
+  h1->GetYaxis()->SetTitleOffset(1.3);
+  // h1->GetYaxis()->SetTitleOffset(0.8);  // was 1.03 without setting also the size
+  h1->GetYaxis()->SetTitleSize(0.05);  
+  h1->GetYaxis()->SetLabelSize(0.04);
+  h1->GetYaxis()->SetRangeUser(0.0, max(h1->GetMaximum(),stackCopy->GetMaximum()) * 1.2);
+  if (setXAxisRangeFromUser) h1->GetXaxis()->SetRangeUser(xmin,xmax);
+  h1->Draw("EP");
+  hMCstack->Draw("HIST SAME");
+  TH1D* noStackCopy = NULL;
+  for (UInt_t j = 0; j < vecMCnostack.size(); j++) {
+    /* TH1D* noStackCopy = (TH1D*) vecMCnostack[j]->DrawCopy("hist same"); */
+    /* vecMCnostack[j]->SetFillColor(vecMCnostack[j]->GetLineColor()); */
+    /* vecMCnostack[j]->SetFillStyle(3013); */
+    /* vecMCnostack[j]->Draw("E2 SAME"); */
+    if (vecMCnostack.size() == 1) {
+      noStackCopy = (TH1D*) vecMCnostack[j]->Clone(Form("%s_clone",vecMCnostack[j]->GetName()));
+      noStackCopy->SetFillColor(vecMCnostack[j]->GetLineColor());
+      noStackCopy->SetFillStyle(3013);
+      noStackCopy->Draw("E2 SAME");
+    }
+    vecMCnostack[j]->Draw("HIST SAME");
+    vecMCnostack[j]->GetXaxis()->SetTitle("");
+  }
+  h1->Draw("EP SAME");
+
+  Double_t legLowY = 0.7;
+  if ((vecMC.size() + vecMCnostack.size()) > 5) legLowY = legLowY - 0.03 * (vecMC.size() + vecMCnostack.size() - 5); 
+  TLegend leg (0.6,legLowY,0.9,0.9);
+  leg.SetFillColor(0);
+  leg.SetFillStyle(0);
+  leg.SetBorderSize(0);
+  leg.AddEntry(h1,legEntry1.c_str(),"PLE");
+  for (UInt_t i = 0; i < vecMC.size(); i++) {
+    leg.AddEntry(vecMC[i],vecLegEntryMC[i].c_str(),"LF");
+  }
+  for (UInt_t i = 0; i < vecMCnostack.size(); i++) {
+    if (vecMCnostack.size() == 1) leg.AddEntry(noStackCopy,vecLegEntryMCnostack[i].c_str(),"LF");
+    else leg.AddEntry(vecMCnostack[i],vecLegEntryMCnostack[i].c_str(),"L");
+  }
+  leg.Draw("same");
+  canvas->RedrawAxis("sameaxis");
+
+  //  CMS_lumi(canvas,Form("%.1f",lumi));
+  if (lumi < 0) CMS_lumi(canvas,"",false,false);
+  else CMS_lumi(canvas,Form("%.1f",lumi),false,false);
+  setTDRStyle();
+
+  pad2->Draw();
+  pad2->cd();
+
+  frame->Reset("ICES");
+  if (setRatioYAxisRangeFromUser) frame->GetYaxis()->SetRangeUser(yminRatio,ymaxRatio);
+  else frame->GetYaxis()->SetRangeUser(0.5,1.5);
+  frame->GetYaxis()->SetNdivisions(5);
+  frame->GetYaxis()->SetTitle(ratioPadYaxisName.c_str());
+  frame->GetYaxis()->SetTitleOffset(1.2);
+  frame->GetYaxis()->SetTitleSize(0.04); // needed when using histograms in file produced with mcPlots.py 
+  frame->GetYaxis()->SetLabelSize(0.04); // needed when using histograms in file produced with mcPlots.py 
+  frame->GetYaxis()->CenterTitle();
+  if (setXAxisRangeFromUser) frame->GetXaxis()->SetRangeUser(xmin,xmax);
+  frame->GetXaxis()->SetTitle(xAxisName.c_str());
+  // frame->GetXaxis()->SetTitleOffset(0.8);
+  frame->GetXaxis()->SetTitleSize(0.05); 
+
+  TH1D* ratio = NULL;
+  vector<TH1D*> ratio_noStack;
+  TH1D* den_noerr = NULL;
+  TH1D* den = NULL;
+  if (denForRatio == "stack") {
+    ratio = (TH1D*) h1->Clone("ratio");
+    den_noerr = (TH1D*) stackCopy->Clone("den_noerr");
+    den = (TH1D*) stackCopy->Clone("den");
+  } else if (denForRatio == "nostack") {
+    ratio = (TH1D*) h1->Clone("ratio");
+    den_noerr = (TH1D*) vecMCnostack[0]->Clone("den_noerr");
+    den = (TH1D*) vecMCnostack[0]->Clone("den");
+  } else if (denForRatio == "data") {
+    ratio = (TH1D*) stackCopy->Clone();
+    for (UInt_t i = 0; i < vecMCnostack.size(); i++) 
+      ratio_noStack.push_back( (TH1D*) vecMCnostack[i]->Clone());
+    den_noerr = (TH1D*) h1->Clone("den_noerr");
+    den = (TH1D*) h1->Clone("den");
+  }
+
+  for(int iBin = 1; iBin < den->GetNbinsX()+1; iBin++)
+    den_noerr->SetBinError(iBin,0.);
+
+  ratio->Divide(den_noerr);
+  if (denForRatio == "data") {
+    ratio->SetMarkerStyle(22); // triangle, use 22 for filled marker
+    ratio->SetMarkerSize(1.1); // triangle, use 22 for filled marker
+    ratio->SetMarkerColor(kBlue);
+  } else {
+    ratio->SetMarkerSize(0.85);
+  }
+  den->Divide(den_noerr);
+  den->SetFillColor(kGray);
+  frame->Draw();
+  den->SetMarkerStyle(0);
+  den->Draw("E2same");
+  ratio->Draw("EPsame");
+  for (UInt_t i = 0; i < ratio_noStack.size(); i++) {
+    ratio_noStack[i]->Divide(den_noerr);
+    ratio_noStack[i]->SetMarkerSize(0.85);
+    //ratio_noStack[i]->SetMarkerColor();
+    ratio_noStack[i]->Draw("EPsame");
+  }
+
+  TF1* line = new TF1("horiz_line","1",ratio->GetXaxis()->GetBinLowEdge(1),ratio->GetXaxis()->GetBinLowEdge(ratio->GetNbinsX()+1));
+  line->SetLineColor(kRed);
+  line->SetLineWidth(2);
+  line->Draw("Lsame");
+  ratio->Draw("EPsame");
   pad2->RedrawAxis("sameaxis");
-  /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
-  /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
-  canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
-  canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
-  canvas->SetLogy(0);
 
+  TLegend leg2 (0.14,0.24,0.32,0.29,NULL,"brNDC");
+  leg2.SetFillColor(0);
+  leg2.SetFillStyle(1);
+  leg2.SetBorderSize(0);
+  leg2.SetLineColor(0);
+  if (denForRatio == "data") leg2.AddEntry(ratio,"stack","PLE");
+  leg2.Draw("same");
+
+  // Calculate chi2                                                                                        
+  /* double chi2 = h1->Chi2Test(stackCopy,"CHI2/NDF WW"); */
+  /* TLegend leg2 (0.14,0.25,0.32,0.28,NULL,"brNDC"); */
+  /* leg2.SetFillColor(0); */
+  /* leg2.SetFillStyle(1); */
+  /* leg2.SetBorderSize(0); */
+  /* leg2.SetLineColor(0); */
+  /* leg2.AddEntry((TObject*)0,Form("#chi^{2}/ndf = %.2f",chi2),""); */
+  /* leg2.Draw("same"); */
+
+  if (draw_both0_noLog1_onlyLog2 != 2) {
+    canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
+  }
+
+  /* Double_t minY_log = max(0.001, min(h1->GetBinContent(h1->GetMinimumBin()),stackCopy->GetBinContent(stackCopy->GetMinimumBin())) ) * 0.01; */
+  /* if ( fabs(minY_log) < 0.00001) minY_log = 0.001;  // avoid zero */
+  /* h1->GetYaxis()->SetRangeUser(minY_log * 0.8, max(h1->GetMaximum(),stackCopy->GetMaximum())*100); */
+  //Double_t minY_log = max(0.001,min(h1->GetMinimum(),stackCopy->GetMinimum())*0.8);
+  //if (min(h1->GetBinContent(h1->GetMinimumBin()),stackCopy->GetBinContent(stackCopy->GetMinimumBin()) > 0) minY_log = 0.5;
+
+  /* Double_t minY_log = -1.0; */
+  /* TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First(); // */
+
+  if (draw_both0_noLog1_onlyLog2 != 1) {
+
+    Double_t minY_log = 1e20;
+    TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
+    /* if (lowerStackObject->GetBinContent(stackCopy->GetMinimumBin()) > 0.000001 ) { */
+    /*   // if no empty bin in stack */
+    /*   minY_log = 0.05 * lowerStackObject->GetBinContent(lowerStackObject->GetMinimumBin()); */
+    /* } else { */
+    /*   minY_log = 0.01 * stackCopy->GetBinContent(stackCopy->GetMinimumBin()); */
+    /* } */
+
+    for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
+      if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    }
+
+    if (minY_log < 0.000001) minY_log = 0.1;
+    minY_log = 0.05 * minY_log;
+
+    h1->GetYaxis()->SetRangeUser(minY_log,max(h1->GetMaximum(),stackCopy->GetMaximum())*100);
+    canvas->SetLogy();
+    pad2->RedrawAxis("sameaxis");
+    /* if (lumi < 0) CMS_lumi(canvas,"",true,false); */
+    /* else CMS_lumi(canvas,Form("%.1f",lumi),true,false); */
+    canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    canvas->SetLogy(0);
+  }
+
+  delete hMCstack;
+  delete pad2;
   delete canvas;
 
 }
@@ -1399,7 +2133,6 @@ void drawTH1dataMCstack(TH1* h1 = NULL, vector<TH1*> vecMC = {},
 
 //=============================================================
 
-//=============================================================
 
 TFitResultPtr drawTH1(TH1* h1 = NULL, 
 		      const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
@@ -1577,11 +2310,134 @@ TFitResultPtr drawTH1(TH1* h1 = NULL,
 
 //=============================================================
 
+
+void drawSingleTH1(TH1* h1 = NULL, 
+		   const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
+		   const string& outputDIR = "./", 
+		   const string& legEntryTmp = "", 
+		   const Double_t lumi = -1.0, 
+		   const Int_t rebinFactor = 1,
+		   const Bool_t noStatBox = false,
+		   const Int_t draw_both0_noLog1_onlyLog2 = 0		    
+		   )
+{
+
+  string xAxisName = "";
+  Double_t xmin = 0;
+  Double_t xmax = 0;
+  Bool_t setXAxisRangeFromUser = getAxisRangeFromUser(xAxisName, xmin, xmax, xAxisNameTmp);
+
+  string legEntry = "";
+  string legHeader = "";
+  Bool_t setLegendHeader = false;
+
+  string separator = "::";
+  size_t pos = legEntryTmp.find(separator);
+  if (pos != string::npos) {
+    setLegendHeader = true;
+    legEntry.assign(legEntryTmp, 0, pos); 
+    legHeader.assign(legEntryTmp, pos + separator.size(), string::npos);
+  } else {
+    legEntry = legEntryTmp;
+  }
+
+
+  // cout << "xAxisName = " << xAxisName << "   xmin = " << xmin << "  xmax = " << xmax << endl;
+
+  TH1::SetDefaultSumw2(); //all the following histograms will automatically call TH1::Sumw2() 
+
+  myRebinHisto(h1,rebinFactor);
+  
+  TCanvas* canvas = new TCanvas("canvas","",700,700);
+  canvas->cd();
+  canvas->SetTickx(1);
+  canvas->SetTicky(1);
+  canvas->cd();
+  canvas->SetBottomMargin(0.12);
+  canvas->SetRightMargin(0.06);
+
+  h1->Draw("HE");
+
+
+  canvas->Update();
+  TPaveStats *statBox = (TPaveStats*)(h1->FindObject("stats"));
+  if (statBox) {
+    statBox->SetX1NDC(0.62);
+    statBox->SetX2NDC(0.92);
+    statBox->SetY1NDC(0.59);
+    statBox->SetY2NDC(0.91);
+    statBox->SetFillColor(0);
+    statBox->SetFillStyle(0);
+    statBox->SetBorderSize(0);
+    statBox->Draw();
+  }
+  canvas->Update();
+
+  if (setXAxisRangeFromUser) h1->GetXaxis()->SetRangeUser(xmin,xmax);
+  h1->GetXaxis()->SetTitle(xAxisName.c_str());
+  // h1->GetXaxis()->SetTitleOffset(0.8);
+  h1->GetXaxis()->SetTitleSize(0.05);
+  h1->GetYaxis()->SetTitle(yAxisName.c_str());
+  h1->GetYaxis()->SetTitleOffset(1.1);
+  // h1->GetYaxis()->SetTitleOffset(0.8);  // was 1.03 without setting also the size
+  h1->GetYaxis()->SetTitleSize(0.05);
+  h1->GetYaxis()->SetRangeUser(0.0, h1->GetMaximum() * 1.5);
+  canvas->RedrawAxis("sameaxis");
+  canvas->Update();
+
+  TLegend leg (0.15,0.7,0.6,0.9);
+  if (setLegendHeader) leg.SetHeader(legHeader.c_str());
+  leg.SetFillColor(0);
+  leg.SetFillStyle(0);
+  leg.SetBorderSize(0);
+  leg.AddEntry(h1,legEntry.c_str(),"L");
+  leg.Draw("same");
+  canvas->RedrawAxis("sameaxis");
+
+  //  CMS_lumi(canvas,Form("%.1f",lumi));
+  if (lumi < 0) CMS_lumi(canvas,"",true,false);
+  else CMS_lumi(canvas,Form("%.1f",lumi),true,false);
+  setTDRStyle();
+
+  
+  if (noStatBox) {
+    h1->SetStats(0);
+    //cout << "No Statistics box" << endl;
+  } else {
+    //canvas->Update();
+    gPad->Update();
+    gStyle->SetOptStat(1110);
+  }
+  //h1->SetStats(0);
+
+  canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
+  canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
+
+  if (draw_both0_noLog1_onlyLog2 != 1) {
+
+    if (yAxisName == "a.u.") h1->GetYaxis()->SetRangeUser(max(0.0001,h1->GetMinimum()*0.8),h1->GetMaximum()*100);
+    else                     h1->GetYaxis()->SetRangeUser(max(0.001,h1->GetMinimum()*0.8),h1->GetMaximum()*100);
+    canvas->SetLogy();
+    canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    canvas->SetLogy(0);
+
+  }
+
+
+  delete canvas;
+
+}
+
+
+//=============================================================
+
 void drawTH1MCstack(vector<TH1*> vecMC = {}, 
 		    const string& xAxisNameTmp = "", const string& yAxisName = "Events", const string& canvasName = "default", 
 		    const string& outputDIR = "./", 
 		    const vector<string>& vecLegEntryMC = {""}, 
-		    const Double_t lumi = -1.0, const Int_t rebinFactor = 1
+		    const Double_t lumi = -1.0, const Int_t rebinFactor = 1,
+		    const Int_t draw_both0_noLog1_onlyLog2 = 0		    
 		    )
 {
 
@@ -1661,25 +2517,30 @@ void drawTH1MCstack(vector<TH1*> vecMC = {},
   else CMS_lumi(canvas,Form("%.1f",lumi),false,false);
   setTDRStyle();
 
-  canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
-  canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
-
-  Double_t minY_log = 1e10;
-  TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
-
-  for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
-    if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+  if (draw_both0_noLog1_onlyLog2 != 2) {
+    canvas->SaveAs((outputDIR + canvasName + ".png").c_str());
+    canvas->SaveAs((outputDIR + canvasName + ".pdf").c_str());
   }
 
-  if (minY_log < 0.000001) minY_log = 0.1;
-  minY_log = 0.05 * minY_log;
+  if (draw_both0_noLog1_onlyLog2 != 1) {
 
-  stackCopy->GetYaxis()->SetRangeUser(minY_log,stackCopy->GetMaximum()*100);
-  canvas->SetLogy();
-  canvas->RedrawAxis("sameaxis");
-  canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
-  //canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
-  canvas->SetLogy(0);
+    Double_t minY_log = 1e10;
+    TH1D* lowerStackObject = (TH1D*) hMCstack->GetStack()->First();
+    
+    for (Int_t ibin = 0; ibin <= lowerStackObject->GetNbinsX(); ibin++ ) {
+      if (lowerStackObject->GetBinContent(ibin) > 0.0000001 && minY_log > lowerStackObject->GetBinContent(ibin)) minY_log = lowerStackObject->GetBinContent(ibin);
+    }
+    
+    if (minY_log < 0.000001) minY_log = 0.1;
+    minY_log = 0.05 * minY_log;
+    
+    stackCopy->GetYaxis()->SetRangeUser(minY_log,stackCopy->GetMaximum()*100);
+    canvas->SetLogy();
+    canvas->RedrawAxis("sameaxis");
+    canvas->SaveAs((outputDIR + canvasName + "_logY.png").c_str());
+    //canvas->SaveAs((outputDIR + canvasName + "_logY.pdf").c_str());
+    canvas->SetLogy(0);
+  }
 
   delete canvas;
 
@@ -2075,53 +2936,21 @@ Double_t getXsec13TeV(const string& sample) {
 //=========================================================
 
 Double_t getSumGenWeightFromSampleName(const string& sample) {
+
+  if (sample.find("data") != string::npos || sample.find("fake") != string::npos) 
+    return 1.0;
   
   // xsec in pb
   map<string, Double_t> map_sampleName_sumGenWgt;
 
   // map created with script getSumWeightPerSample.py
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part1"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part10"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part11"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part2"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part3"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part4"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part5"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part6"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part7"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part8"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext2_part9"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part1"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part2"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part3"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part4"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part5"] = 142209392.0;
-  map_sampleName_sumGenWgt["DYJetsToLL_M50_LO_ext_part6"] = 142209392.0;
   map_sampleName_sumGenWgt["DYJetsToLL_M50_part1"] = 4.4113015039e+11;
   map_sampleName_sumGenWgt["DYJetsToLL_M50_part2"] = 4.4113015039e+11;
-  map_sampleName_sumGenWgt["QCD_Mu15_part1"] = 12260254.0;
-  map_sampleName_sumGenWgt["QCD_Mu15_part2"] = 12260254.0;
-  map_sampleName_sumGenWgt["QCD_Pt1000toInf_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt120to170_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt15to20_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt170to300_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt170to300_Mu5_ext"] = 126748460.747;
   map_sampleName_sumGenWgt["QCD_Pt20to30_EMEnriched"] = 38966443.5421;
-  map_sampleName_sumGenWgt["QCD_Pt20to30_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5_ext"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt300to470_Mu5_ext2"] = 126748460.747;
   map_sampleName_sumGenWgt["QCD_Pt30to50_EMEnriched"] = 38966443.5421;
   map_sampleName_sumGenWgt["QCD_Pt30to50_EMEnriched_ext"] = 38966443.5421;
-  map_sampleName_sumGenWgt["QCD_Pt30to50_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt470to600_Mu5_ext"] = 126748460.747;
   map_sampleName_sumGenWgt["QCD_Pt50to80_EMEnriched_ext"] = 38966443.5421;
-  map_sampleName_sumGenWgt["QCD_Pt50to80_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt600to800_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt800to1000_Mu5_ext2"] = 126748460.747;
   map_sampleName_sumGenWgt["QCD_Pt80to120_EMEnriched_ext"] = 38966443.5421;
-  map_sampleName_sumGenWgt["QCD_Pt80to120_Mu5"] = 126748460.747;
-  map_sampleName_sumGenWgt["QCD_Pt80to120_Mu5_ext"] = 126748460.747;
   map_sampleName_sumGenWgt["QCD_Pt_170to250_bcToE"] = 57429713.852;
   map_sampleName_sumGenWgt["QCD_Pt_20to30_bcToE"] = 57429713.852;
   map_sampleName_sumGenWgt["QCD_Pt_250toInf_bcToE"] = 57429713.852;
@@ -2131,51 +2960,15 @@ Double_t getSumGenWeightFromSampleName(const string& sample) {
   map_sampleName_sumGenWgt["TBar_tch_powheg_part1"] = 37659712.0;
   map_sampleName_sumGenWgt["TBar_tch_powheg_part2"] = 37659712.0;
   map_sampleName_sumGenWgt["TBar_tch_powheg_part3"] = 37659712.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part1"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part2"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part3"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part4"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part5"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part6"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part7"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part8"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_ext_part9"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part1"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part2"] = 54512878.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part1"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part2"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part3"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part4"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_ext_part5"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part1"] = 52405916.0;
-  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part2"] = 52405916.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part1"] = 9949110.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromT_part2"] = 9949110.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part1"] = 8929457.0;
+  map_sampleName_sumGenWgt["TTJets_SingleLeptonFromTbar_part2"] = 8929457.0;
   map_sampleName_sumGenWgt["TToLeptons_sch_amcatnlo"] = 3370668.5184;
   map_sampleName_sumGenWgt["T_tWch_ext"] = 6332490.0;
   map_sampleName_sumGenWgt["T_tch_powheg_part1"] = 61947468.0;
   map_sampleName_sumGenWgt["T_tch_powheg_part2"] = 61947468.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part1"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part10"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part2"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part3"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part4"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part5"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part6"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part7"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part8"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_ext_part9"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part1"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part2"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part3"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part4"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part5"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_LO_part6"] = 86099951.0;
-  map_sampleName_sumGenWgt["WJetsToLNu_part1"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part2"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part3"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part4"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part5"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part6"] = 3.50627475345e+12;
-  map_sampleName_sumGenWgt["WJetsToLNu_part7"] = 3.50627475345e+12;
+  map_sampleName_sumGenWgt["WJetsToLNu_NoSkim"] = 3.69928427394e+12;
   map_sampleName_sumGenWgt["WW"] = 6248191.83067;
   map_sampleName_sumGenWgt["WW_ext"] = 6248191.83067;
   map_sampleName_sumGenWgt["WZ"] = 3995828.0;
@@ -2183,10 +2976,7 @@ Double_t getSumGenWeightFromSampleName(const string& sample) {
   map_sampleName_sumGenWgt["ZZ"] = 1988098.0;
   map_sampleName_sumGenWgt["ZZ_ext"] = 1988098.0;
 
-  if (sample.find("data") != string::npos || sample.find("fake") != string::npos) 
-    return 1.0;
-  else
-    return map_sampleName_sumGenWgt[sample];
+  return map_sampleName_sumGenWgt[sample];
 
 }
 
@@ -2245,266 +3035,228 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
     }
   } else {
 
+    /* vector<string> sampleRoots = {"DYJetsToLL_M50_part", */
+    /* 				  # "DYJetsToLL_M50_LO",                           */
+    /* 				  "WW", */
+    /* 				  "WZ", */
+    /* 				  "ZZ", */
+    /* 				  "TBar_tWch_ext", */
+    /* 				  "T_tWch_ext", */
+    /* 				  "TTJets_SingleLeptonFromT_", */
+    /* 				  "TTJets_SingleLeptonFromTbar_", */
+    /* 				  "T_tch_powheg", */
+    /* 				  "TBar_tch_powheg_", */
+    /* 				  "TToLeptons_sch_amcatnl", */
+    /* 				  "WJetsToLNu_NoSkim", */
+    /* 				  "_bcTo", */
+    /* 				  "_EMEnriched", */
+    /* 				  # "_Mu5",     */
+    /* 				  # "_Mu15"} */
+
     if (sample == Sample::wjets || sample == Sample::wenujets || sample == Sample::wmunujets || sample == Sample::wtaunujets) {
-      subSampleNameVector.push_back("WJetsToLNu_part1");
-      subSampleNameVector.push_back("WJetsToLNu_part2");
-      subSampleNameVector.push_back("WJetsToLNu_part3");
-      subSampleNameVector.push_back("WJetsToLNu_part4");
-      subSampleNameVector.push_back("WJetsToLNu_part5");
-      subSampleNameVector.push_back("WJetsToLNu_part6");
-      subSampleNameVector.push_back("WJetsToLNu_part7");
-    } else if (sample == Sample::wjets_LO || sample == Sample::wenujets_LO || sample == Sample::wmunujets_LO || sample == Sample::wtaunujets_LO) { 
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part1");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part10");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part2");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part3");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part4");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part5");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part6");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part7");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part8");
-      subSampleNameVector.push_back("WJetsToLNu_LO_ext_part9");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part1");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part2");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part3");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part4");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part5");
-      subSampleNameVector.push_back("WJetsToLNu_LO_part6");
+      subSampleNameVector.push_back("WJetsToLNu_NoSkim");
+    /* } else if (sample == Sample::wjets_LO || sample == Sample::wenujets_LO || sample == Sample::wmunujets_LO || sample == Sample::wtaunujets_LO) {  */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part1"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part10"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part2"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part3"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part4"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part5"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part6"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part7"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part8"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_ext_part9"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part1"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part2"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part3"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part4"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part5"); */
+    /*   subSampleNameVector.push_back("WJetsToLNu_LO_part6"); */
     } else if (sample == Sample::zjets) {
       subSampleNameVector.push_back("DYJetsToLL_M50_part1");
       subSampleNameVector.push_back("DYJetsToLL_M50_part2");
-    } else if (sample == Sample::zjets_LO) {
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part1");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part10");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part11");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part2");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part3");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part4");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part5");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part6");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part7");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part8");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part9");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part1");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part2");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part3");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part4");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part5");
-      subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part6");
+    /* } else if (sample == Sample::zjets_LO) { */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part1"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part10"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part11"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part2"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part3"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part4"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part5"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part6"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part7"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part8"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext2_part9"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part1"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part2"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part3"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part4"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part5"); */
+    /*   subSampleNameVector.push_back("DYJetsToLL_M50_LO_ext_part6"); */
     /* } else if (sample == Sample::data_doubleEG) { */
     /* } else if (sample == Sample::data_doubleMu) { */
-    } else if (sample == Sample::data_singleEG) {
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part1");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part10");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part11");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part12");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part2");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part3");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part4");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part5");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part6");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part7");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part8");
-      subSampleNameVector.push_back("SingleElectron_Run2016B_part9");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part1");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part2");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part3");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part4");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part5");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part6");
-      subSampleNameVector.push_back("SingleElectron_Run2016C_part7");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part1");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part10");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part11");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part2");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part3");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part4");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part5");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part6");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part7");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part8");
-      subSampleNameVector.push_back("SingleElectron_Run2016D_part9");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part1");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part2");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part3");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part4");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part5");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part6");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part7");
-      subSampleNameVector.push_back("SingleElectron_Run2016E_part8");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part1");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part2");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part3");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part4");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part5");
-      subSampleNameVector.push_back("SingleElectron_Run2016F_part6");
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part1"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part10"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part11"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part12"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part13"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part2"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part3"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part4"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part5"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part6"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part7"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part8"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016G_part9"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part1"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part10"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part11"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part12"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part13"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part14"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part2"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part3"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part4"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part5"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part6"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part7"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part8"); */
-      /* subSampleNameVector.push_back("SingleElectron_Run2016H_part9"); */
-    } else if (sample == Sample::data_singleMu) { 
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part11");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part12");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part13");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part14");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part15");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part16");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part17");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part18");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part19");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part20");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part21");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part22");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part23");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016B_part9");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016C_part9");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016D_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part11");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part12");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part13");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part14");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016E_part9");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part11");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016F_part9");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part11");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part12");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part13");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part14");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part15");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part16");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part17");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part18");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part19");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part20");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part21");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part22");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part23");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016G_part9");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part1");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part10");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part11");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part12");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part13");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part14");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part15");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part17");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part18");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part19");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part2");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part20");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part21");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part22");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part23");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part24");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part25");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part26");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part27");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part28");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part29");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part3");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part30");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part31");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part32");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part4");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part5");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part6");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part7");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part8");
-      subSampleNameVector.push_back("SingleMuon_Run2016H_part9");
+    } else if (sample == Sample::data_singleEG || sample == Sample::qcd_ele_fake) {
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016B_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016B_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016B_part3");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016B_part4");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016C_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016C_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016D_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016D_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016D_part3");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016E_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016E_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016F_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016F_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016G_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016G_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016G_part3");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016G_part4");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016H_part1");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016H_part2");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016H_part3");
+      subSampleNameVector.push_back("SingleElectron_07Aug17_Run2016H_part4");
+    /* } else if (sample == Sample::data_singleMu) {  */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part11"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part12"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part13"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part14"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part15"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part16"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part17"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part18"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part19"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part20"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part21"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part22"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part23"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016B_part9"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016C_part9"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016D_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part11"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part12"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part13"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part14"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016E_part9"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part11"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016F_part9"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part11"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part12"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part13"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part14"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part15"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part16"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part17"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part18"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part19"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part20"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part21"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part22"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part23"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016G_part9"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part1"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part10"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part11"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part12"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part13"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part14"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part15"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part17"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part18"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part19"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part2"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part20"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part21"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part22"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part23"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part24"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part25"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part26"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part27"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part28"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part29"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part3"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part30"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part31"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part32"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part4"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part5"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part6"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part7"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part8"); */
+    /*   subSampleNameVector.push_back("SingleMuon_Run2016H_part9"); */
     } else if (sample == Sample::top) {
       subSampleNameVector.push_back("TBar_tWch_ext");
       subSampleNameVector.push_back("TBar_tch_powheg_part1");
       subSampleNameVector.push_back("TBar_tch_powheg_part2");
       subSampleNameVector.push_back("TBar_tch_powheg_part3");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part1");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part2");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part3");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part4");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part5");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part6");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part7");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part8");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part9");
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part1"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part2"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part3"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part4"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part5"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part6"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part7"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part8"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromT_ext_part9"); */
       subSampleNameVector.push_back("TTJets_SingleLeptonFromT_part1");
       subSampleNameVector.push_back("TTJets_SingleLeptonFromT_part2");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part1");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part2");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part3");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part4");
-      subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part5");
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part1"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part2"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part3"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part4"); */
+      /* subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_ext_part5"); */
       subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part1");
       subSampleNameVector.push_back("TTJets_SingleLeptonFromTbar_part2");
       subSampleNameVector.push_back("TToLeptons_sch_amcatnlo");
@@ -2634,7 +3386,6 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
       string friend_treeRootFile = "";
       if (use8TeVSample) friend_treeRootFile = treePath + "friends/evVarFriend_" + subSampleNameVector[i]+ ".root";
       else friend_treeRootFile = treePath + "friends/tree_Friend_" + subSampleNameVector[i]+ ".root";
-
       chFriend->Add(TString(friend_treeRootFile.c_str()));
 
     }
@@ -2679,7 +3430,7 @@ void buildChain(TChain* chain, vector<Double_t>& genwgtVec, const bool use8TeVSa
     cout << "entries in chSfFriend = " << chSfFriend->GetEntries() << endl;
     
     if (chain->GetEntries() != chSfFriend->GetEntries()) {
-      cout << "#### Error in buildChain8TeV() function: chain and chSfFriend have different number of events." << endl;      
+      cout << "#### Error in buildChain() function: chain and chSfFriend have different number of events." << endl;      
       cout << "sample: " << getStringFromEnumSample(sample) << endl;
       cout << "chain: " << chain->GetEntries() << endl;
       cout << "chSfFriend: " << chSfFriend->GetEntries() << endl;

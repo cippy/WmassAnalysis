@@ -54,23 +54,6 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   outputFile->cd();
 
-  // define electron ID at 8 TeV from --> https://twiki.cern.ch/twiki/bin/viewauth/CMS/EgammaCutBasedIdentification
-  // use use tight trigger ID: for quantities not mentioned in this ID, use those from lepton loose ID
-  // will use PF isolation, we don't have detector based ID in ntuples yet
-  // electronID tightEleID_EB_8TeV(0.004, 0.03, 0.01, 0.12, 0.02, 0.1, 0.05);
-  // electronID tightEleID_EE_8TeV(0.005, 0.02, 0.03, 0.10, 0.02, 0.1, 0.05); 
-  // electronID tightEleID_EB_8TeV(0.007, 0.15, 0.01, 0.12, 0.02, 0.2, 0.05, 1, 1);
-  // electronID tightEleID_EE_8TeV(0.009, 0.10, 0.03, 0.10, 0.02, 0.2, 0.05, 1, 1); 
-
-  // triggering MVA ID --> https://twiki.cern.ch/twiki/bin/viewauth/CMS/MultivariateElectronIdentification#Triggering_MVA
-  // electronTriggeringMVAID innerEB_TrigMVAID_highPt(0.1, 0.15, 0, 1);
-  // electronTriggeringMVAID outerEB_TrigMVAID_highPt(0.85, 0.15, 0, 1);
-  // electronTriggeringMVAID EE_TrigMVAID_highPt(0.92, 0.15, 0, 1);
-
-  // electronTriggeringMVAID innerEB_TrigMVAID_lowPt(0.0, 0.15, 0, 1);
-  // electronTriggeringMVAID outerEB_TrigMVAID_lowPt(0.10, 0.15, 0, 1);
-  // electronTriggeringMVAID EE_TrigMVAID_lowPt(0.62, 0.15, 0, 1);
-
   electronCutThreshold* eleCut = NULL;    
   electronID* eleID = NULL; // choose in loop for each event between EB or EE id
   electronTriggeringMVAID* eleTrigMVAID = NULL; //
@@ -80,13 +63,6 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   Double_t eleIso04thr_QCD = 0.1; // = 0.05;  // iso > this value
   Double_t muIso04thr = 0.12;       // 0.15,  0.2,   0.125
   Double_t muIso04thr_QCD = 0.20;       // 0.15,  e.g., sig region for iso < 0.15 and QCD region for iso > 0.2
-
-  // value from https://twiki.cern.ch/twiki/bin/viewauth/CMS/EgammaCutBasedIdentification#Tight_Trigger_ID
-  // and from tight ID (hand-defined numbers looking at plots)
-  // Double_t eleDetaThr_EB = 0.004;  
-  // Double_t eleDetaThr_EE = 0.005;
-  // Double_t eleDphiThr_EB = 0.03;  
-  // Double_t eleDphiThr_EE = 0.02;
 
   // container for electron selection thresholds
   // variables are deta, dphi ..., defined in utility.h
@@ -155,7 +131,8 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   if (sampleDir.find("data") == string::npos && sampleDir.find("fake") == string::npos) SfFriendChain = new TChain("sf/t");  // leave as NULL if you don't use friend trees
 
   vector<Double_t> genwgtVec;
-  buildChain8TeV(chain, genwgtVec, inputDIR, sample, friendChain, SfFriendChain); 
+  buildChain(chain, genwgtVec, use8TeVSample, inputDIR, sample, friendChain, SfFriendChain); 
+  return;
 
   // change directory again, when building chain something was messed up
   dirSample->cd();
@@ -208,9 +185,11 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
   TTreeReaderArray<Int_t> lep_eleMVAId (reader,"LepGood_eleMVAId"); // 
   TTreeReaderArray<Int_t> lep_convVetoFull (reader,"LepGood_convVetoFull"); // like conVetoFull, but also includes no missing hits
 
-  TTreeReaderArray<Float_t>* lep_eleMVAPreselId  = NULL;
+  //TTreeReaderArray<Float_t>* lep_eleMVAPreselId  = NULL;
   //if (not useEleSkimmedSample) lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
-  lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
+  //lep_eleMVAPreselId = new TTreeReaderArray<Float_t>(reader, "LepGood_eleMVAPreselId") ;
+  TTreeReaderArray<Float_t> lep_eleMVAPreselId (reader, "LepGood_eleMVAPreselId") ;
+  
 
   // other electron related branch
   TTreeReaderArray<Float_t> lep_etaSc (reader,"LepGood_scEta");
@@ -657,7 +636,6 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
     if (fabs(lep_pdgId[0]) != chargedLeptonFlavour) continue;  // electrons                                                     
     if (lep_pt[0] < 30.0) continue;
     if (fabs(lep_eta[0]) < lepEtaMinThreshold || fabs(lep_eta[0]) > lepEtaMaxThreshold) continue; 
-    //if (lep_trgMatch[0] < 0.5) continue;  // avoid using it for now, it could be ill-defined
 
     // apply gen cut to wjets to separate the 3 leptonic decay channels
     if (WJetsGenDaughterPdgId > 0) {
@@ -717,29 +695,11 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
       }
 
       // implementing electron triggering ID
-      if ((*lep_eleMVAPreselId)[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
-
-
-      // if (lep_sigmaIetaIeta[0] > eleID->sigmaIetaIeta) continue;
-      // if (lep_HoE[0] > eleID->HoE) continue;
-      // if (lep_dz[0] > eleID->dz) continue;
-      // if ((1 - lep_eSuperClusterOverP[0])/lep_ecalEnergy[0] > eleID->invE_minus_invP) continue;
-      // if (lep_lostHits[0] > eleID->missingHits) continue;
-      // if (lep_convVeto[0] == 0) continue;
-
-      // triggering ID
-      // if (fabs(lep_eta[0]) < 0.8) eleTrigMVAID = &innerEB_TrigMVAID_highPt;
-      // else if (fabs(lep_eta[0]) < 1.479) eleTrigMVAID = &outerEB_TrigMVAID_highPt;
-      // else if (fabs(lep_eta[0]) < 2.5) eleTrigMVAID = &EE_TrigMVAID_highPt;
-      // if (lep_mvaIdTrig[0] < eleTrigMVAID->mva) continue;
-      // if (lep_lostHits[0] > eleTrigMVAID->maxMissingHits) continue;
-      // if (lep_convVeto[0] < eleTrigMVAID->convVeto) continue;
+      if (lep_eleMVAPreselId[0] < 0.5) continue;      // trigger level ID 1 if ok, but since it is float, distinguish from 0 by asking > 0.5)
 
       // relative isolation cut applied afterwards, to allow for inversion depending on the region
 
     }
-
-    //cout << "Check" << endl;
 
     if (lep_pdgId[0] > 0) negativeLeptonHasPassedSelection = true;
     else                  positiveLeptonHasPassedSelection = true;
@@ -850,16 +810,10 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
 	if (PFMET_ELE_CR > 0.0 && pfmet2D.Mod() > PFMET_ELE_CR) continue;
 	if (lep_relIso04[0] > eleIso04thr_QCD) passIsoSel = true;
-	//passIsoSel = true; // no cut on Iso for electrons
 
 	// for the SR the deta,dphi cuts come from the MVA ID
 	if (absLep1DetaIn > eleCut->deta) passDetaSel = true;
       	if (absLep1DphiIn > eleCut->dphi) passDphiSel = true;
-
-      	// if (absLep1DetaIn > eleID->dEtaIn) passDetaSel = true;
-      	// if (absLep1DphiIn > eleID->dPhiIn) passDphiSel = true;
-      	// if (lep_dxy[0] > eleID->dxy) passDxySel = true;
-      	// if (lep_relIso03[0] > leptonIso03threshold) passIsoSel = true;  
 
       } else {
 
@@ -882,22 +836,11 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 	  if (lep_eleMVAId[0] < 2) continue;      
 	  if (lep_relIso04[0] < eleIso04thr) passIsoSel = true;
 	}
-	///// tight ID
-	/////
+
 	if (pfmet2D.Mod() < PFMET_ELE_SR) continue;
-	//passIsoSel = true; // no cut on Iso for electrons
-   	// if (absLep1DetaIn < eleCut->deta) passDetaSel = true;
-      	// if (absLep1DphiIn < eleCut->dphi) passDphiSel = true;
 	passDetaSel = true;
       	passDphiSel = true;
    
-
-      	// if (absLep1DetaIn < eleID->dEtaIn) passDetaSel = true;
-      	// if (absLep1DphiIn < eleID->dPhiIn) passDphiSel = true;
-      	// if (lep_dxy[0] < eleID->dxy) passDxySel = true;
-      	// if (lep_relIso03[0] < leptonIso03threshold) passIsoSel = true;  
-	// if (lep_relIso04[0] < eleTrigMVAID->relPFiso) passIsoSel = true;	
-
       }
 
       fillTH1(hmT_noCutIsoDphiDeta, mT, wgt);      
@@ -960,45 +903,7 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
     /////////////////////////////////////
 
-    /////////////////////////////////////
-    // electron cut to be inverted in QCD region, fill histogram before each of those cuts
-    ////////////////////////////////////////////
-    // if ((not isMuon) && passIsoSel) {
-
-    //   if (passDphiSel && passDxySel) {
-    // 	fillTH1(hdetaIn_noCut, absLep1DetaIn, wgt);
-    // 	fillTH2(h2_mT_detaIn_noCut, mT, absLep1DetaIn, wgt);
-    // 	fillTH2(h2_lep1pt_detaIn_noCut, lep1pt, absLep1DetaIn, wgt);
-    //   }
-    //   if (passDetaSel && passDxySel) {
-    // 	fillTH1(hdphiIn_noCut, absLep1DphiIn, wgt);
-    // 	fillTH2(h2_mT_dphiIn_noCut, mT, absLep1DphiIn, wgt);
-    // 	fillTH2(h2_lep1pt_dphiIn_noCut, lep1pt, absLep1DphiIn, wgt);
-    //   }
-    //   if (passDetaSel && passDphiSel) {
-    // 	fillTH1(hdxy_noCut, lep_dxy[0], wgt);
-    // 	fillTH2(h2_mT_dxy_noCut, mT, lep_dxy[0], wgt);
-    // 	fillTH2(h2_lep1pt_dxy_noCut, lep1pt, lep_dxy[0], wgt);
-    //   }
-
-    // }
-    ////////////////////////////////////////////
-
-    ////////////////////////////
-    // LEP ISO CUT AND OTHERS TO SEPARATE QCD REGION
-    /////////////////////////////
     if (not passIsoSel) continue;
-    //cout << "passed iso sel" << endl;
- 
-    // if (isMuon) {
-    //   if (not passIsoSel) continue;
-    // }
-    // else {
-    //   if (QCD_enriched_region) {
-    // 	if (!(passDetaSel || passDphiSel || passDxySel || passIsoSel)) continue;
-    //   } else 
-    // 	if (!(passDetaSel && passDphiSel && passDxySel && passIsoSel)) continue;
-    // }
 
     fillTH1(hmT,(Double_t) mT, wgt);
     fillTH1(hmT2over4,(Double_t) mT2over4, wgt);
@@ -1161,77 +1066,12 @@ void fillHistograms(const string& inputDIR = "./", const string& outputDIR = "./
 
   cout << endl;
   cout << "Writing on output file" << endl;
-  // delete hRecoilCorrectionTkmet;
-  // delete hRecoilCorrectionPfmet;
   delete recoilCorrFile;
   delete fakeRateFile;
 
   // if the file is opened in UPDATE mode, the following should overwrite an object if its key inside the file already exists
   // this needs to be tested
   outputFile->Write(0,TObject::kOverwrite);
-
-  ////////////////////////////////////////////
-  // tmp plot to be removed to adjust settings in CMS_lumi     
-  // TH2D* h2tmp = new TH2D("h2tmp","",2,0,2,2,0,2);
-  // h2tmp->Fill(0.8,0.8,4);
-  // h2tmp->Fill(0.5,1.2,2);
-  // h2tmp->Fill(1.2,1.1,5);
-  // h2tmp->Fill(1.8,0.5,3);
-  // drawCorrelationPlot(h2tmp, "variable 1", "variable 2", "tmpToBeRemoved", "tmp object", outputDIR);
-  // system(("rm " + outputDIR + "*tmpToBeRemoved*").c_str());
-  // delete h2tmp;
-  ////////////////////////////////////////////
-
-  string corr_outputDIR = "";
-
-  ////////////////////////////////////////////
-  // plot correlation for combined charge
-  ////////////////////////////////////////////
-  // if (isMuon && (sample == Sample::wjets || sample == Sample::qcd_mu || sample == Sample::data_singleMu) ) {
-
-  //   corr_outputDIR = outputDIR + "combined/correlation/" + sampleDir + "/";
-  //   createPlotDirAndCopyPhp(corr_outputDIR);
-
-  //   drawCorrelationPlot(h2_mT_lep1relIso04_noIsoCut, "W(#mu#nu) transverse mass [GeV]", "muon isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_mT_lep1relIso04_noIsoCut",getTexLabel(sampleDir),corr_outputDIR,2);  
-  //   drawCorrelationPlot(h2_mT_lep1relIso04, "W(#mu#nu) transverse mass [GeV]", "muon isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_mT_lep1relIso04",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_lep1pt, "W(#mu#nu) transverse mass [GeV]", "muon p_{T} [GeV]", "correlation_"+sampleDir+"_mT_lep1pt",getTexLabel(sampleDir),corr_outputDIR);      
-  //   drawCorrelationPlot(h2_mT_pfmet, "W(#mu#nu) transverse mass [GeV]", "PF E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_mT_pfmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_tkmet, "W(#mu#nu) transverse mass [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_mT_tkmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_bosonPt, "W(#mu#nu) transverse mass [GeV]", "boson p_{T} [GeV]", "correlation_"+sampleDir+"_mT_bosonPt",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_lep1pt_lep1relIso04_noIsoCut, "muon p_{T} [GeV]", "muon isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_lep1pt_lep1relIso04_noIsoCut",getTexLabel(sampleDir),corr_outputDIR,2);  
-  //   drawCorrelationPlot(h2_lep1pt_lep1relIso04, "muon p_{T} [GeV]", "muon isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_lep1pt_lep1relIso04",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_lep1pt_pfmet, "muon p_{T} [GeV]", "PF E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_lep1pt_pfmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_lep1pt_tkmet, "muon p_{T} [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_lep1pt_tkmet",getTexLabel(sampleDir),corr_outputDIR); 
-  //   drawCorrelationPlot(h2_lep1pt_bosonPt, "muon p_{T} [GeV]", "boson p_{T} [GeV]", "correlation_"+sampleDir+"_lep1pt_bosonPt",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_pfmet_tkmet, "PF E_{T}^{miss} [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_pfmet_tkmet",getTexLabel(sampleDir),corr_outputDIR);  
-
-
-  // } else if ((not isMuon) && (sample == Sample::wjets || sample == Sample::qcd_ele || sample == Sample::data_singleEG) ) {
-
-  //   corr_outputDIR = outputDIR + "combined/correlation/" + sampleDir + "/";
-  //   createPlotDirAndCopyPhp(corr_outputDIR);
-
-  //   drawCorrelationPlot(h2_mT_lep1relIso03_noIsoCut, "W(e#nu) transverse mass [GeV]", "electron isolation (relIso03) [GeV]", "correlation_"+sampleDir+"_mT_lep1relIso03_noIsoCut",getTexLabel(sampleDir),corr_outputDIR,2);  
-  //   drawCorrelationPlot(h2_mT_lep1relIso03, "W(e#nu) transverse mass [GeV]", "electron isolation (relIso03) [GeV]", "correlation_"+sampleDir+"_mT_lep1relIso03",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_lep1pt, "W(e#nu) transverse mass [GeV]", "electron p_{T} [GeV]", "correlation_"+sampleDir+"_mT_lep1pt",getTexLabel(sampleDir),corr_outputDIR);      
-  //   drawCorrelationPlot(h2_mT_pfmet, "W(e#nu) transverse mass [GeV]", "PF E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_mT_pfmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_tkmet, "W(e#nu) transverse mass [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_mT_tkmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_mT_bosonPt, "W(e#nu) transverse mass [GeV]", "boson p_{T} [GeV]", "correlation_"+sampleDir+"_mT_bosonPt",getTexLabel(sampleDir),corr_outputDIR); 
-  //   // drawCorrelationPlot(h2_mT_detaIn_noCut, "W(e#nu) transverse mass [GeV]", "electron #Delta#eta(track,SC)", "correlation_"+sampleDir+"_mT_detaIn_noCut",getTexLabel(sampleDir),corr_outputDIR);
-  //   // drawCorrelationPlot(h2_mT_dphiIn_noCut, "W(e#nu) transverse mass [GeV]", "electron #Delta#phi(track,SC)", "correlation_"+sampleDir+"_mT_dphiIn_noCut",getTexLabel(sampleDir),corr_outputDIR);    
-  //   // drawCorrelationPlot(h2_mT_dxy_noCut, "W(e#nu) transverse mass [GeV]", "electron track #Deltaxy", "correlation_"+sampleDir+"_mT_dxy_noCut",getTexLabel(sampleDir),corr_outputDIR);      
-
-  //   drawCorrelationPlot(h2_lep1pt_lep1relIso04_noIsoCut, "electron p_{T} [GeV]", "electron isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_lep1pt_lep1relIso04_noIsoCut",getTexLabel(sampleDir),corr_outputDIR,2);  
-  //   drawCorrelationPlot(h2_lep1pt_lep1relIso04, "electron p_{T} [GeV]", "electron isolation (relIso04) [GeV]", "correlation_"+sampleDir+"_lep1pt_lep1relIso04",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_lep1pt_pfmet, "electron p_{T} [GeV]", "PF E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_lep1pt_pfmet",getTexLabel(sampleDir),corr_outputDIR);  
-  //   drawCorrelationPlot(h2_lep1pt_tkmet, "electron p_{T} [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_lep1pt_tkmet",getTexLabel(sampleDir),corr_outputDIR); 
-  //   drawCorrelationPlot(h2_lep1pt_bosonPt, "electron p_{T} [GeV]", "boson p_{T} [GeV]", "correlation_"+sampleDir+"_lep1pt_bosonPt",getTexLabel(sampleDir),corr_outputDIR); 
-  //   // drawCorrelationPlot(h2_lep1pt_detaIn_noCut, "electron p_{T} [GeV]", "electron #Delta#eta(track,SC)", "correlation_"+sampleDir+"_lep1pt_detaIn_noCut",getTexLabel(sampleDir),corr_outputDIR);      
-  //   // drawCorrelationPlot(h2_lep1pt_dphiIn_noCut, "electron p_{T} [GeV]", "electron #Delta#eta(track,SC)", "correlation_"+sampleDir+"_lep1pt_detaIn_noCut",getTexLabel(sampleDir),corr_outputDIR);      
-  //   // drawCorrelationPlot(h2_lep1pt_dxy_noCut, "electron p_{T} [GeV]", "electron track #Deltaxy", "correlation_"+sampleDir+"_lep1pt_dxy_noCut",getTexLabel(sampleDir),corr_outputDIR);      
-  //   drawCorrelationPlot(h2_pfmet_tkmet, "PF E_{T}^{miss} [GeV]", "tracker E_{T}^{miss} [GeV]", "correlation_"+sampleDir+"_pfmet_tkmet",getTexLabel(sampleDir),corr_outputDIR);
-
-  // }
 
   cout << endl;
 
@@ -1275,7 +1115,6 @@ void makeWBosonVariableHistograms8TeV(const string& inputDIR = "./", const strin
     fillHistograms(inputDIR, outputDIR, Sample::wenujets, outputFile, QCD_enriched_region, isMuon);
     fillHistograms(inputDIR, outputDIR, Sample::wmunujets, outputFile, QCD_enriched_region, isMuon);
   }
-  //  fillHistograms(inputDIR, outputDIR, Sample::wjets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::wtaunujets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::zjets, outputFile, QCD_enriched_region, isMuon);
   fillHistograms(inputDIR, outputDIR, Sample::top, outputFile, QCD_enriched_region, isMuon);
